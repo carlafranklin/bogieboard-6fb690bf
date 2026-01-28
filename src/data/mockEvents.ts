@@ -27,12 +27,12 @@ export const categoryLabels: Record<string, string> = {
 };
 
 export const categoryColors: Record<string, string> = {
-  family: 'bg-teal-light text-teal',
-  athletic: 'bg-coral-light text-coral-dark',
-  arts: 'bg-secondary text-secondary-foreground',
+  family: 'bg-green-light text-green-dark',
+  athletic: 'bg-purple-light text-purple-dark',
+  arts: 'bg-secondary/10 text-secondary',
   nightlife: 'bg-muted text-muted-foreground',
-  food: 'bg-coral-light text-coral-dark',
-  outdoor: 'bg-teal-light text-teal',
+  food: 'bg-yellow-light text-yellow-foreground',
+  outdoor: 'bg-green-light text-green-dark',
 };
 
 export const mockEvents: Event[] = [

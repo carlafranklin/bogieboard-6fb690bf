@@ -84,7 +84,7 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={handleSearch} className="bg-primary hover:bg-coral-dark text-primary-foreground">
+          <Button onClick={handleSearch} className="bg-primary hover:bg-green-dark text-primary-foreground">
             <Search className="w-4 h-4 mr-2" />
             Search
           </Button>
@@ -166,7 +166,7 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
       <Button
         onClick={handleSearch}
         size="lg"
-        className="w-full h-14 text-lg font-semibold bg-primary hover:bg-coral-dark text-primary-foreground"
+        className="w-full h-14 text-lg font-semibold bg-primary hover:bg-green-dark text-primary-foreground"
       >
         <Search className="w-5 h-5 mr-2" />
         Find Events

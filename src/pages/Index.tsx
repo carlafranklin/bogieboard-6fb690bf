@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { HeroSection } from '@/components/HeroSection';
+import { EventShowcase } from '@/components/EventShowcase';
 import { HowItWorks } from '@/components/HowItWorks';
 import { FeaturedEvents } from '@/components/FeaturedEvents';
 import { Footer } from '@/components/Footer';
@@ -26,6 +27,8 @@ const Index = () => {
 
       <main className="pt-16">
         <HeroSection onSearch={handleSearch} />
+        
+        <EventShowcase />
         
         <div id="how-it-works">
           <HowItWorks />

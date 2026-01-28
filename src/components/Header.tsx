@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { MapPin, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -11,16 +12,18 @@ export function Header() {
     <motion.header
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
       className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border"
     >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <MapPin className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <span className="font-display text-xl font-bold text-foreground">BogieBoard</span>
+            <img 
+              src={bogieBoardLogo} 
+              alt="BogieBoard" 
+              className="h-10 w-auto object-contain"
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -38,7 +41,7 @@ export function Header() {
 
           {/* Desktop CTA */}
           <div className="hidden md:block">
-            <Button className="bg-primary hover:bg-coral-dark text-primary-foreground">
+            <Button className="bg-primary hover:bg-green-dark text-primary-foreground">
               Get Started
             </Button>
           </div>
@@ -75,7 +78,7 @@ export function Header() {
               <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>
                 How It Works
               </a>
-              <Button className="bg-primary hover:bg-coral-dark text-primary-foreground w-full mt-2">
+              <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">
                 Get Started
               </Button>
             </div>
