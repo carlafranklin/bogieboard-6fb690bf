@@ -28,7 +28,7 @@ export function EventCard({ event, index, onViewDetails }: EventCardProps) {
           <CategoryBadge category={event.category} />
         </div>
         {event.isFree && (
-          <div className="absolute top-3 right-3 z-20 bg-teal text-teal-foreground px-2.5 py-1 rounded-full text-xs font-semibold">
+          <div className="absolute top-3 right-3 z-20 bg-primary text-primary-foreground px-2.5 py-1 rounded-full text-xs font-semibold">
             FREE
           </div>
         )}
@@ -59,12 +59,12 @@ export function EventCard({ event, index, onViewDetails }: EventCardProps) {
           {event.price ? (
             <span className="font-semibold text-foreground">${event.price}</span>
           ) : (
-            <span className="text-teal font-semibold">Free</span>
+            <span className="text-primary font-semibold">Free</span>
           )}
           <Button
             variant="ghost"
             size="sm"
-            className="text-primary hover:text-primary hover:bg-coral-light"
+            className="text-primary hover:text-primary hover:bg-green-light"
             onClick={(e) => {
               e.stopPropagation();
               onViewDetails(event);
