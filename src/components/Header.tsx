@@ -47,7 +47,9 @@ export function Header() {
           <nav className="hidden md:flex items-center gap-8">
             <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Home</Link>
             <Link to="/events" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Events</Link>
-            <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+            {!isLoggedIn && (
+              <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+            )}
           </nav>
 
           <div className="hidden md:flex items-center gap-2">
@@ -90,7 +92,9 @@ export function Header() {
             <div className="flex flex-col gap-4">
               <Link to="/" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Home</Link>
               <Link to="/events" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Events</Link>
-              <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>How It Works</a>
+              {!isLoggedIn && (
+                <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>How It Works</a>
+              )}
               {isLoggedIn ? (
                 <>
                   {isAdmin && (
