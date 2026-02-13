@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield } from 'lucide-react';
+import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
@@ -173,6 +174,34 @@ export default function AdminPage() {
     }
   };
 
+  const handleAddRole = async (userId: string, role: string) => {
+    const { error } = await supabase.from('user_roles').insert({ user_id: userId, role: role as any });
+    if (error) {
+      if (error.code === '23505') {
+        toast({ title: 'Already has role', description: `User already has the ${role} role.` });
+      } else {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      }
+    } else {
+      await loadData();
+      toast({ title: 'Role added', description: `${role} role granted.` });
+    }
+  };
+
+  const handleRemoveRole = async (userId: string, role: string) => {
+    if (role === 'general') {
+      toast({ title: 'Cannot remove', description: 'General role cannot be removed.', variant: 'destructive' });
+      return;
+    }
+    const { error } = await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', role as any);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      await loadData();
+      toast({ title: 'Role removed', description: `${role} role removed.` });
+    }
+  };
+
   if (!isAdmin || loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -235,35 +264,49 @@ export default function AdminPage() {
                         <TableRow>
                           <TableHead>Name</TableHead>
                           <TableHead>Email</TableHead>
-                          <TableHead>Phone</TableHead>
-                          <TableHead>Gender</TableHead>
+                          <TableHead>Roles</TableHead>
+                          <TableHead>Manage Role</TableHead>
+                          <TableHead>Joined</TableHead>
                           <TableHead>Roles</TableHead>
                           <TableHead>Joined</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {users.map(user => (
-                          <TableRow key={user.id}>
+                           <TableRow key={user.id}>
                             <TableCell className="font-medium">
                               {user.first_name || user.last_name
                                 ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
                                 : '—'}
                             </TableCell>
                             <TableCell>{user.email || '—'}</TableCell>
-                            <TableCell>{user.phone || '—'}</TableCell>
-                            <TableCell className="capitalize">{user.gender || '—'}</TableCell>
                             <TableCell>
                               <div className="flex gap-1 flex-wrap">
                                 {user.roles.map(role => (
                                   <Badge
                                     key={role}
                                     variant={role === 'admin' ? 'destructive' : role === 'business' ? 'secondary' : 'outline'}
-                                    className="text-xs"
+                                    className="text-xs cursor-pointer gap-1"
+                                    onClick={() => role !== 'general' && handleRemoveRole(user.user_id, role)}
+                                    title={role === 'general' ? 'Cannot remove general role' : `Click to remove ${role} role`}
                                   >
                                     {role}
+                                    {role !== 'general' && <X className="w-3 h-3" />}
                                   </Badge>
                                 ))}
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              <Select onValueChange={(val) => handleAddRole(user.user_id, val)}>
+                                <SelectTrigger className="w-32 h-8 text-xs">
+                                  <SelectValue placeholder="Add role..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {['business', 'admin'].filter(r => !user.roles.includes(r)).map(role => (
+                                    <SelectItem key={role} value={role} className="text-xs capitalize">{role}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {new Date(user.created_at).toLocaleDateString()}
@@ -272,7 +315,7 @@ export default function AdminPage() {
                         ))}
                         {users.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No users found</TableCell>
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users found</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
