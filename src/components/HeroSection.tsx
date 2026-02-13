@@ -23,7 +23,19 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
           transition={{ duration: 0.5 }}
           className="text-center mb-3"
         >
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground">BogieBoard</h1>
+          {/* Logo */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="flex justify-center mb-2"
+          >
+            <img 
+              src={bogieBoardLogo} 
+              alt="BogieBoard" 
+              className="h-48 sm:h-64 md:h-80 w-auto object-contain"
+            />
+          </motion.div>
 
           <motion.p
             initial={{ opacity: 0, y: 10 }}
