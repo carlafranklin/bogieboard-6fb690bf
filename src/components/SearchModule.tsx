@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, MapPin, Calendar, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -17,6 +16,8 @@ import {
 } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { metroAreas } from '@/data/metroAreas';
 
 interface SearchModuleProps {
   onSearch: (params: SearchParams) => void;
@@ -54,12 +55,6 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
     onSearch({ location, category, date });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
   if (compact) {
     return (
       <motion.div
@@ -68,16 +63,20 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
         className="bg-card rounded-xl shadow-md p-3"
       >
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="City or ZIP code"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              onKeyPress={handleKeyPress}
-              className="pl-9 bg-background border-input"
-            />
-          </div>
+          <Select value={location} onValueChange={setLocation}>
+            <SelectTrigger className="w-full sm:w-[220px]">
+              <MapPin className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+              <SelectValue placeholder="Select Metro Area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Locations</SelectItem>
+              {metroAreas.map((metro) => (
+                <SelectItem key={metro.value} value={metro.value}>
+                  {metro.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Category" />
@@ -90,6 +89,23 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
               ))}
             </SelectContent>
           </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-[160px] justify-start text-left font-normal">
+                <Calendar className="w-4 h-4 mr-2 text-muted-foreground" />
+                {date ? format(date, 'MMM d, yyyy') : 'Any date'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
           <Button onClick={handleSearch} className="bg-primary hover:bg-green-dark text-primary-foreground">
             <Search className="w-4 h-4 mr-2" />
             Search
@@ -107,19 +123,25 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
       className="bg-card rounded-2xl shadow-lg p-6 md:p-8 max-w-3xl mx-auto"
     >
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Location Input */}
+        {/* Location Dropdown */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground flex items-center gap-2">
             <MapPin className="w-4 h-4 text-primary" />
             Location
           </label>
-          <Input
-            placeholder="City or ZIP code"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="h-12 bg-background border-input text-base"
-          />
+          <Select value={location} onValueChange={setLocation}>
+            <SelectTrigger className="h-12">
+              <SelectValue placeholder="Select metro area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Locations</SelectItem>
+              {metroAreas.map((metro) => (
+                <SelectItem key={metro.value} value={metro.value}>
+                  {metro.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Category Select */}
@@ -163,6 +185,7 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
                 selected={date}
                 onSelect={setDate}
                 initialFocus
+                className={cn("p-3 pointer-events-auto")}
               />
             </PopoverContent>
           </Popover>

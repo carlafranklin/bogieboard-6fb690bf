@@ -1,15 +1,17 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, SearchX } from 'lucide-react';
+import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SearchModule, SearchParams } from '@/components/SearchModule';
 import { SearchFilters, FilterState } from '@/components/SearchFilters';
-import { EventCard } from '@/components/EventCard';
 import { EventDetailModal } from '@/components/EventDetailModal';
-import { mockEvents, Event } from '@/data/mockEvents';
+import { mockEvents, Event, categoryLabels } from '@/data/mockEvents';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { metroAreas, getCitiesForMetro } from '@/data/metroAreas';
 import { Button } from '@/components/ui/button';
+import { format, parseISO } from 'date-fns';
 
 const defaultFilters: FilterState = {
   priceRange: 'all',
@@ -24,17 +26,30 @@ export default function EventsPage() {
   const [searchQuery, setSearchQuery] = useState({
     location: searchParams.get('location') || '',
     category: searchParams.get('category') || 'all',
+    date: undefined as Date | undefined,
   });
 
   const handleSearch = (params: SearchParams) => {
     setSearchQuery({
       location: params.location,
       category: params.category,
+      date: params.date,
     });
   };
 
   const filteredEvents = useMemo(() => {
     return mockEvents.filter((event) => {
+      // Metro area location filter
+      if (searchQuery.location && searchQuery.location !== 'all') {
+        const metroCities = getCitiesForMetro(searchQuery.location);
+        if (metroCities.length > 0) {
+          const eventCityLower = event.city.toLowerCase();
+          if (!metroCities.some((c) => c.toLowerCase() === eventCityLower)) {
+            return false;
+          }
+        }
+      }
+
       // Category filter from search
       if (searchQuery.category !== 'all' && event.category !== searchQuery.category) {
         return false;
@@ -45,6 +60,19 @@ export default function EventsPage() {
         return false;
       }
 
+      // Date filter
+      if (searchQuery.date) {
+        const eventDate = parseISO(event.date);
+        const searchDate = searchQuery.date;
+        if (
+          eventDate.getFullYear() !== searchDate.getFullYear() ||
+          eventDate.getMonth() !== searchDate.getMonth() ||
+          eventDate.getDate() !== searchDate.getDate()
+        ) {
+          return false;
+        }
+      }
+
       // Price filter
       if (filters.priceRange === 'free' && !event.isFree) return false;
       if (filters.priceRange === 'paid' && event.isFree) return false;
@@ -53,12 +81,29 @@ export default function EventsPage() {
     });
   }, [searchQuery, filters]);
 
+  // Group events by date for a structured display
+  const groupedEvents = useMemo(() => {
+    const sorted = [...filteredEvents].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    const groups: Record<string, Event[]> = {};
+    sorted.forEach((event) => {
+      if (!groups[event.date]) groups[event.date] = [];
+      groups[event.date].push(event);
+    });
+    return groups;
+  }, [filteredEvents]);
+
+  const locationLabel = searchQuery.location && searchQuery.location !== 'all'
+    ? metroAreas.find((m) => m.value === searchQuery.location)?.label
+    : null;
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="pt-24 pb-16 px-4">
-        <div className="container mx-auto max-w-6xl">
+        <div className="container mx-auto max-w-5xl">
           {/* Back Link */}
           <Link
             to="/"
@@ -78,9 +123,9 @@ export default function EventsPage() {
               Discover Events
             </h1>
             <p className="text-muted-foreground">
-              {searchQuery.location
-                ? `Showing events near ${searchQuery.location}`
-                : 'Find events happening near you'}
+              {locationLabel
+                ? `Showing events in the ${locationLabel}`
+                : 'Find events happening in your area'}
             </p>
           </motion.div>
 
@@ -101,17 +146,83 @@ export default function EventsPage() {
           {/* Results */}
           {filteredEvents.length > 0 ? (
             <>
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground mb-6">
                 Showing {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+                {locationLabel ? ` in ${locationLabel}` : ''}
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredEvents.map((event, index) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    index={index}
-                    onViewDetails={setSelectedEvent}
-                  />
+
+              <div className="space-y-8">
+                {Object.entries(groupedEvents).map(([dateStr, events]) => (
+                  <div key={dateStr}>
+                    <h2 className="font-display text-lg font-semibold text-foreground mb-4 border-b border-border pb-2">
+                      {format(parseISO(dateStr), 'EEEE, MMMM d, yyyy')}
+                    </h2>
+                    <div className="space-y-3">
+                      {events.map((event, index) => (
+                        <motion.div
+                          key={event.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          className="group bg-card rounded-xl overflow-hidden card-hover cursor-pointer border border-border"
+                          onClick={() => setSelectedEvent(event)}
+                        >
+                          <div className="flex flex-col sm:flex-row">
+                            {/* Image */}
+                            <div className="sm:w-48 sm:min-h-[140px] relative overflow-hidden bg-muted shrink-0">
+                              <div className="absolute top-2 left-2 z-10">
+                                <CategoryBadge category={event.category} />
+                              </div>
+                              {event.isFree && (
+                                <div className="absolute top-2 right-2 z-10 bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-xs font-semibold">
+                                  FREE
+                                </div>
+                              )}
+                              <div className="w-full h-full min-h-[120px] bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
+                                <span className="text-3xl opacity-40">🎉</span>
+                              </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
+                              <div>
+                                <h3 className="font-display text-lg font-semibold text-foreground group-hover:text-primary transition-colors mb-1.5">
+                                  {event.title}
+                                </h3>
+                                <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                  {event.description}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-primary" />
+                                  {event.time}
+                                </span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                                  {event.venue}, {event.city}
+                                </span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <DollarSign className="w-3.5 h-3.5 text-primary" />
+                                  {event.isFree ? (
+                                    <span className="text-primary font-medium">Free</span>
+                                  ) : (
+                                    <span className="font-medium text-foreground">${event.price}</span>
+                                  )}
+                                </span>
+                                {event.ageRestriction && (
+                                  <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
+                                    {event.ageRestriction}+
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </>
@@ -133,7 +244,7 @@ export default function EventsPage() {
               <Button
                 onClick={() => {
                   setFilters(defaultFilters);
-                  setSearchQuery({ location: '', category: 'all' });
+                  setSearchQuery({ location: '', category: 'all', date: undefined });
                 }}
                 variant="outline"
               >
