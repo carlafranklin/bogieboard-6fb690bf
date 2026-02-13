@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { User, Save, Plus, Trash2, LogOut } from 'lucide-react';
+import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { profileSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,22 +63,27 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!userId) return;
+    const validation = profileSchema.safeParse({
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      phone: profile.phone,
+      address: profile.address,
+      date_of_birth: profile.date_of_birth,
+      gender: profile.gender,
+      marital_status: profile.marital_status,
+    });
+    if (!validation.success) {
+      toast({ title: 'Invalid input', description: validation.error.errors[0].message, variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from('profiles')
-      .update({
-        first_name: profile.first_name,
-        last_name: profile.last_name,
-        phone: profile.phone,
-        address: profile.address,
-        date_of_birth: profile.date_of_birth,
-        gender: profile.gender,
-        marital_status: profile.marital_status,
-      })
+      .update(validation.data)
       .eq('user_id', userId);
     setSaving(false);
     if (error) {
-      toast({ title: 'Error saving profile', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error saving profile', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       toast({ title: 'Profile saved!' });
     }
@@ -90,7 +97,7 @@ export default function ProfilePage() {
       .select()
       .single();
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else if (data) {
       setPreferences([...preferences, data]);
     }
