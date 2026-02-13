@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { SearchModule, SearchParams } from './SearchModule';
-import bogieBoardLogo from '@/assets/bogieboard-logo.png';
+import bogieBoardLogo from '@/assets/bogieboard-logo-v3.png';
 
 interface HeroSectionProps {
   onSearch: (params: SearchParams) => void;
