@@ -280,8 +280,6 @@ export default function AdminPage() {
                           <TableHead>Roles</TableHead>
                           <TableHead>Manage Role</TableHead>
                           <TableHead>Joined</TableHead>
-                          <TableHead>Roles</TableHead>
-                          <TableHead>Joined</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
