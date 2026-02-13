@@ -1,12 +1,24 @@
 import { motion } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setIsLoggedIn(!!session);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <motion.header
@@ -17,52 +29,36 @@ export function Header() {
     >
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <img 
-              src={bogieBoardLogo} 
-              alt="BogieBoard" 
-              className="h-10 w-auto object-contain"
-            />
+            <img src={bogieBoardLogo} alt="BogieBoard" className="h-10 w-auto object-contain" />
           </Link>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              Home
-            </Link>
-            <Link to="/events" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              Events
-            </Link>
-            <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-              How It Works
-            </a>
+            <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Home</Link>
+            <Link to="/events" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Events</Link>
+            <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
           </nav>
 
-          {/* Desktop CTA */}
-          <div className="hidden md:block">
-            <Link to="/auth">
-              <Button className="bg-primary hover:bg-green-dark text-primary-foreground">
-                Sign In
-              </Button>
-            </Link>
+          <div className="hidden md:flex items-center gap-2">
+            {isLoggedIn ? (
+              <Link to="/profile">
+                <Button variant="outline" size="sm">
+                  <User className="w-4 h-4 mr-2" />
+                  Profile
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/auth">
+                <Button className="bg-primary hover:bg-green-dark text-primary-foreground">Sign In</Button>
+              </Link>
+            )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {isMenuOpen ? (
-              <X className="w-6 h-6 text-foreground" />
-            ) : (
-              <Menu className="w-6 h-6 text-foreground" />
-            )}
+          <button className="md:hidden p-2" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">
+            {isMenuOpen ? <X className="w-6 h-6 text-foreground" /> : <Menu className="w-6 h-6 text-foreground" />}
           </button>
         </div>
 
-        {/* Mobile Menu */}
         {isMenuOpen && (
           <motion.nav
             initial={{ opacity: 0, height: 0 }}
@@ -71,20 +67,21 @@ export function Header() {
             className="md:hidden py-4 border-t border-border"
           >
             <div className="flex flex-col gap-4">
-              <Link to="/" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>
-                Home
-              </Link>
-              <Link to="/events" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>
-                Events
-              </Link>
-              <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>
-                How It Works
-              </a>
-              <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
-                <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">
-                  Sign In
-                </Button>
-              </Link>
+              <Link to="/" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Home</Link>
+              <Link to="/events" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Events</Link>
+              <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>How It Works</a>
+              {isLoggedIn ? (
+                <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                  <Button variant="outline" className="w-full mt-2">
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
+                  <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">Sign In</Button>
+                </Link>
+              )}
             </div>
           </motion.nav>
         )}
