@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
@@ -294,16 +295,36 @@ export default function AdminPage() {
                             <TableCell>
                               <div className="flex gap-1 flex-wrap">
                                 {user.roles.map(role => (
-                                  <Badge
-                                    key={role}
-                                    variant={role === 'admin' ? 'destructive' : role === 'business' ? 'secondary' : 'outline'}
-                                    className="text-xs cursor-pointer gap-1"
-                                    onClick={() => role !== 'general' && handleRemoveRole(user.user_id, role)}
-                                    title={role === 'general' ? 'Cannot remove general role' : `Click to remove ${role} role`}
-                                  >
-                                    {role}
-                                    {role !== 'general' && <X className="w-3 h-3" />}
-                                  </Badge>
+                                  role !== 'general' ? (
+                                    <AlertDialog key={role}>
+                                      <AlertDialogTrigger asChild>
+                                        <Badge
+                                          variant={role === 'admin' ? 'destructive' : 'secondary'}
+                                          className="text-xs cursor-pointer gap-1"
+                                          title={`Click to remove ${role} role`}
+                                        >
+                                          {role}
+                                          <X className="w-3 h-3" />
+                                        </Badge>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Remove {role} role?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            This will remove the <strong>{role}</strong> role from {user.first_name || user.email || 'this user'}. They will lose access to {role}-level features.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleRemoveRole(user.user_id, role)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  ) : (
+                                    <Badge key={role} variant="outline" className="text-xs" title="Cannot remove general role">
+                                      {role}
+                                    </Badge>
+                                  )
                                 ))}
                               </div>
                             </TableCell>
@@ -384,21 +405,53 @@ export default function AdminPage() {
                               >
                                 <Pencil className="w-4 h-4" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="text-destructive" onClick={() => handleDeleteCategory(cat.id)}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="icon" variant="ghost" className="text-destructive">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete "{cat.name}"?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently delete this category and may affect associated events. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteCategory(cat.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
 
                           {/* Subcategories */}
                           <div className="flex flex-wrap gap-2 ml-4">
                             {subs.map(sub => (
-                              <Badge key={sub.id} variant="secondary" className="gap-1 pr-1">
-                                {sub.name}
-                                <button onClick={() => handleDeleteSubcategory(sub.id)} className="ml-1 hover:text-destructive">
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </Badge>
+                              <AlertDialog key={sub.id}>
+                                <Badge variant="secondary" className="gap-1 pr-1">
+                                  {sub.name}
+                                  <AlertDialogTrigger asChild>
+                                    <button className="ml-1 hover:text-destructive">
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </AlertDialogTrigger>
+                                </Badge>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete "{sub.name}"?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will permanently delete this subcategory. This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteSubcategory(sub.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             ))}
                             {addingSubTo === cat.id ? (
                               <div className="flex items-center gap-1">
