@@ -58,11 +58,23 @@ export default function AuthPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    const { error } = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
-    });
-    if (error) {
-      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    try {
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
+      });
+      if (result.redirected) {
+        // Full page redirect happening — nothing more to do here
+        return;
+      }
+      if (result.error) {
+        toast({ title: 'Error', description: getSafeErrorMessage(result.error), variant: 'destructive' });
+        return;
+      }
+      // Tokens received (popup flow) — session was set by the lovable module
+      toast({ title: 'Welcome!' });
+      navigate('/');
+    } catch (error: any) {
+      toast({ title: 'Sign in failed', description: getSafeErrorMessage(error), variant: 'destructive' });
     }
   };
 
