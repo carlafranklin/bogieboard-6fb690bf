@@ -88,7 +88,10 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
                 <div>
                   <p className="text-sm text-muted-foreground">Location</p>
                   <p className="font-medium text-foreground">{event.venue}</p>
-                  <p className="text-sm text-muted-foreground">{event.city}, {event.state}</p>
+                  {event.address && (
+                    <p className="text-sm text-muted-foreground">{event.address}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground">{event.city}, {event.state} {event.zipCode}</p>
                 </div>
               </div>
 
