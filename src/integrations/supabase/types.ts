@@ -14,16 +14,267 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      categories: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          age_restriction: number | null
+          business_user_id: string
+          category_id: string | null
+          city: string | null
+          created_at: string
+          description: string | null
+          event_date: string | null
+          event_time: string | null
+          id: string
+          image_url: string | null
+          is_free: boolean | null
+          price: number | null
+          state: string | null
+          subcategory_id: string | null
+          ticket_url: string | null
+          title: string
+          updated_at: string
+          venue: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          age_restriction?: number | null
+          business_user_id: string
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          event_date?: string | null
+          event_time?: string | null
+          id?: string
+          image_url?: string | null
+          is_free?: boolean | null
+          price?: number | null
+          state?: string | null
+          subcategory_id?: string | null
+          ticket_url?: string | null
+          title: string
+          updated_at?: string
+          venue?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          age_restriction?: number | null
+          business_user_id?: string
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          event_date?: string | null
+          event_time?: string | null
+          id?: string
+          image_url?: string | null
+          is_free?: boolean | null
+          price?: number | null
+          state?: string | null
+          subcategory_id?: string | null
+          ticket_url?: string | null
+          title?: string
+          updated_at?: string
+          venue?: string | null
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          first_name: string | null
+          gender: Database["public"]["Enums"]["gender_type"] | null
+          id: string
+          last_name: string | null
+          marital_status: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          first_name?: string | null
+          gender?: Database["public"]["Enums"]["gender_type"] | null
+          id?: string
+          last_name?: string | null
+          marital_status?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          first_name?: string | null
+          gender?: Database["public"]["Enums"]["gender_type"] | null
+          id?: string
+          last_name?: string | null
+          marital_status?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      search_preferences: {
+        Row: {
+          category_id: string | null
+          city: string | null
+          created_at: string
+          id: string
+          state: string | null
+          subcategory_id: string | null
+          user_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          state?: string | null
+          subcategory_id?: string | null
+          user_id: string
+        }
+        Update: {
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          state?: string | null
+          subcategory_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_preferences_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "search_preferences_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "general" | "business" | "admin"
+      gender_type: "male" | "female" | "nonbinary" | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +401,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["general", "business", "admin"],
+      gender_type: ["male", "female", "nonbinary", "other"],
+    },
   },
 } as const
