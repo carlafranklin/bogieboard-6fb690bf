@@ -27,6 +27,8 @@ export default function EventsPage() {
     location: searchParams.get('location') || '',
     category: searchParams.get('category') || 'all',
     date: undefined as Date | undefined,
+    dateRange: undefined as import('react-day-picker').DateRange | undefined,
+    dateMode: 'single' as 'single' | 'range',
   });
 
   const handleSearch = (params: SearchParams) => {
@@ -34,6 +36,8 @@ export default function EventsPage() {
       location: params.location,
       category: params.category,
       date: params.date,
+      dateRange: params.dateRange,
+      dateMode: params.dateMode,
     });
   };
 
@@ -61,7 +65,15 @@ export default function EventsPage() {
       }
 
       // Date filter
-      if (searchQuery.date) {
+      if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
+        const eventDate = parseISO(event.date);
+        const from = searchQuery.dateRange.from;
+        const to = searchQuery.dateRange.to || from;
+        if (eventDate < new Date(from.getFullYear(), from.getMonth(), from.getDate()) ||
+            eventDate > new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59)) {
+          return false;
+        }
+      } else if (searchQuery.dateMode === 'single' && searchQuery.date) {
         const eventDate = parseISO(event.date);
         const searchDate = searchQuery.date;
         if (
@@ -244,7 +256,7 @@ export default function EventsPage() {
               <Button
                 onClick={() => {
                   setFilters(defaultFilters);
-                  setSearchQuery({ location: '', category: 'all', date: undefined });
+                  setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' });
                 }}
                 variant="outline"
               >

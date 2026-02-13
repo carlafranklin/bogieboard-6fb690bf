@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, MapPin, Calendar, ChevronDown } from 'lucide-react';
+import { Search, MapPin, Calendar, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -18,6 +18,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { metroAreas } from '@/data/metroAreas';
+import type { DateRange } from 'react-day-picker';
 
 interface SearchModuleProps {
   onSearch: (params: SearchParams) => void;
@@ -28,6 +29,8 @@ export interface SearchParams {
   location: string;
   category: string;
   date: Date | undefined;
+  dateRange: DateRange | undefined;
+  dateMode: 'single' | 'range';
 }
 
 const categories = [
@@ -46,14 +49,88 @@ const categories = [
   { value: 'arts-theater', label: 'Arts & Theater' },
 ];
 
+function formatDateLabel(dateMode: 'single' | 'range', date: Date | undefined, dateRange: DateRange | undefined): string {
+  if (dateMode === 'single' && date) {
+    return format(date, 'MMM d, yyyy');
+  }
+  if (dateMode === 'range' && dateRange?.from) {
+    if (dateRange.to) {
+      return `${format(dateRange.from, 'MMM d')} – ${format(dateRange.to, 'MMM d')}`;
+    }
+    return `${format(dateRange.from, 'MMM d')} – ...`;
+  }
+  return 'Any date';
+}
+
 export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('all');
+  const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const handleSearch = () => {
-    onSearch({ location, category, date });
+    onSearch({ location, category, date, dateRange, dateMode });
   };
+
+  const clearDate = () => {
+    setDate(undefined);
+    setDateRange(undefined);
+  };
+
+  const dateLabel = formatDateLabel(dateMode, date, dateRange);
+  const hasDate = dateMode === 'single' ? !!date : !!dateRange?.from;
+
+  const datePickerContent = (
+    <div className="p-3 space-y-3">
+      {/* Mode toggle */}
+      <div className="flex gap-1 bg-muted rounded-lg p-1">
+        <button
+          onClick={() => { setDateMode('single'); setDateRange(undefined); }}
+          className={cn(
+            'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+            dateMode === 'single' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Single Date
+        </button>
+        <button
+          onClick={() => { setDateMode('range'); setDate(undefined); }}
+          className={cn(
+            'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+            dateMode === 'range' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Date Range
+        </button>
+      </div>
+
+      {dateMode === 'single' ? (
+        <CalendarComponent
+          mode="single"
+          selected={date}
+          onSelect={setDate}
+          initialFocus
+          className="pointer-events-auto"
+        />
+      ) : (
+        <CalendarComponent
+          mode="range"
+          selected={dateRange}
+          onSelect={setDateRange}
+          numberOfMonths={2}
+          initialFocus
+          className="pointer-events-auto"
+        />
+      )}
+
+      {hasDate && (
+        <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={clearDate}>
+          <X className="w-3 h-3 mr-1" /> Clear date
+        </Button>
+      )}
+    </div>
+  );
 
   if (compact) {
     return (
@@ -91,19 +168,19 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
           </Select>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-[160px] justify-start text-left font-normal">
-                <Calendar className="w-4 h-4 mr-2 text-muted-foreground" />
-                {date ? format(date, 'MMM d, yyyy') : 'Any date'}
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full sm:w-[200px] justify-start text-left font-normal",
+                  hasDate && "text-foreground"
+                )}
+              >
+                <Calendar className="w-4 h-4 mr-2 text-muted-foreground shrink-0" />
+                <span className="truncate">{dateLabel}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
+              {datePickerContent}
             </PopoverContent>
           </Popover>
           <Button onClick={handleSearch} className="bg-primary hover:bg-green-dark text-primary-foreground">
@@ -174,19 +251,16 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="w-full h-12 justify-start text-left font-normal"
+                className={cn(
+                  "w-full h-12 justify-start text-left font-normal",
+                  hasDate && "text-foreground"
+                )}
               >
-                {date ? format(date, 'PPP') : 'Any date'}
+                {dateLabel}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                initialFocus
-                className={cn("p-3 pointer-events-auto")}
-              />
+              {datePickerContent}
             </PopoverContent>
           </Popover>
         </div>
