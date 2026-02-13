@@ -41,9 +41,11 @@ export function Header() {
 
           {/* Desktop CTA */}
           <div className="hidden md:block">
-            <Button className="bg-primary hover:bg-green-dark text-primary-foreground">
-              Get Started
-            </Button>
+            <Link to="/auth">
+              <Button className="bg-primary hover:bg-green-dark text-primary-foreground">
+                Sign In
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -78,9 +80,11 @@ export function Header() {
               <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>
                 How It Works
               </a>
-              <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">
-                Get Started
-              </Button>
+              <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
+                <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">
+                  Sign In
+                </Button>
+              </Link>
             </div>
           </motion.nav>
         )}

@@ -8,7 +8,7 @@ export interface Event {
   city: string;
   state: string;
   zipCode: string;
-  category: 'family' | 'athletic' | 'arts' | 'nightlife' | 'food' | 'outdoor';
+  category: 'live-music' | 'festivals' | 'business' | 'bar-fun' | 'shopping' | 'family-kids' | 'movies' | 'religious-spiritual' | 'sports-games' | 'lecture-series' | 'political-events' | 'arts-theater';
   imageUrl: string;
   price: number | null;
   isFree: boolean;
@@ -18,21 +18,33 @@ export interface Event {
 }
 
 export const categoryLabels: Record<string, string> = {
-  family: 'Family Friendly',
-  athletic: 'Athletic',
-  arts: 'Arts & Culture',
-  nightlife: 'Over 21+',
-  food: 'Food & Drink',
-  outdoor: 'Outdoor',
+  'live-music': 'Live Music',
+  'festivals': 'Festivals',
+  'business': 'Business',
+  'bar-fun': 'Bar Fun',
+  'shopping': 'Shopping',
+  'family-kids': 'Family & Kids',
+  'movies': 'Movies',
+  'religious-spiritual': 'Religious & Spiritual',
+  'sports-games': 'Sports & Games',
+  'lecture-series': 'Lecture Series',
+  'political-events': 'Political Events',
+  'arts-theater': 'Arts & Theater',
 };
 
 export const categoryColors: Record<string, string> = {
-  family: 'bg-green-light text-green-dark',
-  athletic: 'bg-purple-light text-purple-dark',
-  arts: 'bg-secondary/10 text-secondary',
-  nightlife: 'bg-muted text-muted-foreground',
-  food: 'bg-yellow-light text-yellow-foreground',
-  outdoor: 'bg-green-light text-green-dark',
+  'live-music': 'bg-purple-light text-purple-dark',
+  'festivals': 'bg-yellow-light text-yellow-foreground',
+  'business': 'bg-muted text-muted-foreground',
+  'bar-fun': 'bg-purple-light text-purple-dark',
+  'shopping': 'bg-green-light text-green-dark',
+  'family-kids': 'bg-green-light text-green-dark',
+  'movies': 'bg-secondary/10 text-secondary',
+  'religious-spiritual': 'bg-gold/20 text-gold',
+  'sports-games': 'bg-green-light text-green-dark',
+  'lecture-series': 'bg-muted text-muted-foreground',
+  'political-events': 'bg-purple-light text-purple-dark',
+  'arts-theater': 'bg-secondary/10 text-secondary',
 };
 
 export const mockEvents: Event[] = [
@@ -46,7 +58,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78701',
-    category: 'arts',
+    category: 'live-music',
     imageUrl: '/placeholder.svg',
     price: null,
     isFree: true,
@@ -62,7 +74,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78702',
-    category: 'nightlife',
+    category: 'bar-fun',
     imageUrl: '/placeholder.svg',
     price: 45,
     isFree: false,
@@ -79,7 +91,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78703',
-    category: 'athletic',
+    category: 'sports-games',
     imageUrl: '/placeholder.svg',
     price: 25,
     isFree: false,
@@ -95,7 +107,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78701',
-    category: 'family',
+    category: 'family-kids',
     imageUrl: '/placeholder.svg',
     price: null,
     isFree: true,
@@ -111,7 +123,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78734',
-    category: 'outdoor',
+    category: 'sports-games',
     imageUrl: '/placeholder.svg',
     price: 55,
     isFree: false,
@@ -127,7 +139,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78723',
-    category: 'food',
+    category: 'festivals',
     imageUrl: '/placeholder.svg',
     price: null,
     isFree: true,
@@ -143,7 +155,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78712',
-    category: 'arts',
+    category: 'arts-theater',
     imageUrl: '/placeholder.svg',
     price: 15,
     isFree: false,
@@ -159,7 +171,7 @@ export const mockEvents: Event[] = [
     city: 'Austin',
     state: 'TX',
     zipCode: '78701',
-    category: 'nightlife',
+    category: 'bar-fun',
     imageUrl: '/placeholder.svg',
     price: 30,
     isFree: false,

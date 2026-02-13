@@ -23,12 +23,18 @@ interface SearchFiltersProps {
 }
 
 const categoryOptions = [
-  { value: 'family', label: 'Family Friendly' },
-  { value: 'athletic', label: 'Athletic' },
-  { value: 'arts', label: 'Arts & Culture' },
-  { value: 'nightlife', label: 'Over 21+' },
-  { value: 'food', label: 'Food & Drink' },
-  { value: 'outdoor', label: 'Outdoor' },
+  { value: 'live-music', label: 'Live Music' },
+  { value: 'festivals', label: 'Festivals' },
+  { value: 'business', label: 'Business' },
+  { value: 'bar-fun', label: 'Bar Fun' },
+  { value: 'shopping', label: 'Shopping' },
+  { value: 'family-kids', label: 'Family & Kids' },
+  { value: 'movies', label: 'Movies' },
+  { value: 'religious-spiritual', label: 'Religious & Spiritual' },
+  { value: 'sports-games', label: 'Sports & Games' },
+  { value: 'lecture-series', label: 'Lecture Series' },
+  { value: 'political-events', label: 'Political Events' },
+  { value: 'arts-theater', label: 'Arts & Theater' },
 ];
 
 export function SearchFilters({ filters, onFiltersChange, onClearFilters }: SearchFiltersProps) {
