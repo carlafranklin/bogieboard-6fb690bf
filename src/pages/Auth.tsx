@@ -9,6 +9,7 @@ import { Header } from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { useToast } from '@/hooks/use-toast';
+import { getSafeErrorMessage } from '@/lib/errorUtils';
 import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 
 export default function AuthPage() {
@@ -50,7 +51,7 @@ export default function AuthPage() {
         toast({ title: 'Check your email', description: 'We sent you a confirmation link.' });
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -61,7 +62,7 @@ export default function AuthPage() {
       redirect_uri: window.location.origin,
     });
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     }
   };
 

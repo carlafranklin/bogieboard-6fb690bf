@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog } from 'lucide-react';
+import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { categoryNameSchema, subcategoryNameSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -107,15 +109,20 @@ export default function AdminPage() {
 
   // Category CRUD
   const handleAddCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    const slug = newCategoryName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const result = categoryNameSchema.safeParse(newCategoryName);
+    if (!result.success) {
+      toast({ title: 'Invalid input', description: result.error.errors[0].message, variant: 'destructive' });
+      return;
+    }
+    const name = result.data;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const { error } = await supabase.from('categories').insert({
-      name: newCategoryName.trim(),
+      name,
       slug,
       display_order: categories.length + 1,
     });
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       setNewCategoryName('');
       await loadData();
@@ -124,11 +131,16 @@ export default function AdminPage() {
   };
 
   const handleUpdateCategory = async (id: string) => {
-    if (!editCategoryName.trim()) return;
-    const slug = editCategoryName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const { error } = await supabase.from('categories').update({ name: editCategoryName.trim(), slug }).eq('id', id);
+    const result = categoryNameSchema.safeParse(editCategoryName);
+    if (!result.success) {
+      toast({ title: 'Invalid input', description: result.error.errors[0].message, variant: 'destructive' });
+      return;
+    }
+    const name = result.data;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const { error } = await supabase.from('categories').update({ name, slug }).eq('id', id);
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       setEditingCategory(null);
       await loadData();
@@ -139,7 +151,7 @@ export default function AdminPage() {
   const handleDeleteCategory = async (id: string) => {
     const { error } = await supabase.from('categories').delete().eq('id', id);
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       await loadData();
       toast({ title: 'Category deleted' });
@@ -147,15 +159,20 @@ export default function AdminPage() {
   };
 
   const handleAddSubcategory = async (categoryId: string) => {
-    if (!newSubName.trim()) return;
-    const slug = newSubName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const result = subcategoryNameSchema.safeParse(newSubName);
+    if (!result.success) {
+      toast({ title: 'Invalid input', description: result.error.errors[0].message, variant: 'destructive' });
+      return;
+    }
+    const name = result.data;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const { error } = await supabase.from('subcategories').insert({
       category_id: categoryId,
-      name: newSubName.trim(),
+      name,
       slug,
     });
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       setNewSubName('');
       setAddingSubTo(null);
@@ -167,7 +184,7 @@ export default function AdminPage() {
   const handleDeleteSubcategory = async (id: string) => {
     const { error } = await supabase.from('subcategories').delete().eq('id', id);
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       await loadData();
       toast({ title: 'Subcategory deleted' });
@@ -177,11 +194,7 @@ export default function AdminPage() {
   const handleAddRole = async (userId: string, role: string) => {
     const { error } = await supabase.from('user_roles').insert({ user_id: userId, role: role as any });
     if (error) {
-      if (error.code === '23505') {
-        toast({ title: 'Already has role', description: `User already has the ${role} role.` });
-      } else {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      }
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       await loadData();
       toast({ title: 'Role added', description: `${role} role granted.` });
@@ -195,7 +208,7 @@ export default function AdminPage() {
     }
     const { error } = await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', role as any);
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       await loadData();
       toast({ title: 'Role removed', description: `${role} role removed.` });
