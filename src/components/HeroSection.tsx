@@ -8,7 +8,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ onSearch }: HeroSectionProps) {
   return (
-    <section className="relative min-h-[60vh] flex flex-col justify-center py-8 px-4 overflow-hidden">
+    <section className="relative flex flex-col justify-center pt-4 pb-4 px-4 overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute top-10 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
@@ -21,19 +21,19 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-center mb-6"
+          className="text-center mb-3"
         >
-          {/* Logo */}
+          {/* Logo - 3x larger */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="flex justify-center mb-4"
+            className="flex justify-center mb-2"
           >
             <img 
               src={bogieBoardLogo} 
               alt="BogieBoard" 
-              className="h-24 sm:h-28 md:h-32 w-auto object-contain"
+              className="h-48 sm:h-64 md:h-80 w-auto object-contain"
             />
           </motion.div>
 
@@ -41,7 +41,7 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto"
+            className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto mb-1"
           >
             Discover local events, activities, and experiences happening near you
           </motion.p>
