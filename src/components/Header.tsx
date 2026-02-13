@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import bogieBoardLogo from '@/assets/bogieboard-logo.png';
+import bogieBoardLogo from '@/assets/bogieboard-logo-v3.png';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
