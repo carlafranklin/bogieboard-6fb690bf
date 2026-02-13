@@ -771,6 +771,7 @@ export type Database = {
           created_at: string
           id: string
           latitude: number | null
+          location: unknown
           longitude: number | null
           metro_area_id: string | null
           name: string
@@ -788,6 +789,7 @@ export type Database = {
           created_at?: string
           id?: string
           latitude?: number | null
+          location?: unknown
           longitude?: number | null
           metro_area_id?: string | null
           name: string
@@ -805,6 +807,7 @@ export type Database = {
           created_at?: string
           id?: string
           latitude?: number | null
+          location?: unknown
           longitude?: number | null
           metro_area_id?: string | null
           name?: string
@@ -864,6 +867,39 @@ export type Database = {
           image_url: string
           is_free: boolean
           metro_name: string
+          price_max: number
+          price_min: number
+          start_time: string
+          status: Database["public"]["Enums"]["event_status"]
+          ticket_url: string
+          title: string
+          venue_city: string
+          venue_lat: number
+          venue_lon: number
+          venue_name: string
+          venue_state: string
+          venue_zip: string
+        }[]
+      }
+      search_events_by_radius: {
+        Args: {
+          p_category_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_lat: number
+          p_limit?: number
+          p_lon: number
+          p_radius_meters?: number
+        }
+        Returns: {
+          age_restriction: number
+          all_day: boolean
+          description_short: string
+          distance_meters: number
+          end_time: string
+          event_id: string
+          image_url: string
+          is_free: boolean
           price_max: number
           price_min: number
           start_time: string
