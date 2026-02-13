@@ -41,7 +41,7 @@ export function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-2">
-            <img src={bogieBoardLogo} alt="BogieBoard" className="h-10 w-auto object-contain" />
+            <span className="text-xl font-bold text-foreground">BogieBoard</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
