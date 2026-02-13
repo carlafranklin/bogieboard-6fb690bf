@@ -519,6 +519,48 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_events: {
+        Row: {
+          canonical_event_id: string | null
+          event_id: string | null
+          id: string
+          notes: string | null
+          saved_at: string
+          user_id: string
+        }
+        Insert: {
+          canonical_event_id?: string | null
+          event_id?: string | null
+          id?: string
+          notes?: string | null
+          saved_at?: string
+          user_id: string
+        }
+        Update: {
+          canonical_event_id?: string | null
+          event_id?: string | null
+          id?: string
+          notes?: string | null
+          saved_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_events_canonical_event_id_fkey"
+            columns: ["canonical_event_id"]
+            isOneToOne: false
+            referencedRelation: "canonical_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_events_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       search_logs: {
         Row: {
           category_slug: string | null

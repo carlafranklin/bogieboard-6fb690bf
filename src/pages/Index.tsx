@@ -5,18 +5,21 @@ import { HeroSection } from '@/components/HeroSection';
 import { EventShowcase } from '@/components/EventShowcase';
 import { HowItWorks } from '@/components/HowItWorks';
 import { FeaturedEvents } from '@/components/FeaturedEvents';
-import { PersonalizedEvents } from '@/components/PersonalizedEvents';
+import { NearbyEvents } from '@/components/NearbyEvents';
+import { SavedEventsHistory } from '@/components/SavedEventsHistory';
 import { Footer } from '@/components/Footer';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SearchParams } from '@/components/SearchModule';
 import { Event } from '@/data/mockEvents';
 import { supabase } from '@/integrations/supabase/client';
+import { useSavedEvents } from '@/hooks/useSavedEvents';
 
 const Index = () => {
   const navigate = useNavigate();
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const { isSaved, toggleSave, loading: savingLoading } = useSavedEvents(userId);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -37,19 +40,30 @@ const Index = () => {
     navigate(`/events?${searchParams.toString()}`);
   };
 
+  const isLoggedIn = authChecked && !!userId;
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="pt-16">
-        <HeroSection onSearch={handleSearch} />
-        
-        <EventShowcase />
+        {isLoggedIn ? (
+          <>
+            {/* Signed-in experience: no hero, nearby events right away */}
+            <NearbyEvents
+              userId={userId!}
+              isSaved={isSaved}
+              onToggleSave={(id) => toggleSave(id, 'canonical')}
+              savingLoading={savingLoading}
+            />
 
-        {authChecked && userId ? (
-          <PersonalizedEvents userId={userId} />
+            {/* Past saved events at the bottom */}
+            <SavedEventsHistory userId={userId!} />
+          </>
         ) : (
           <>
+            <HeroSection onSearch={handleSearch} />
+            <EventShowcase />
             <div id="how-it-works">
               <HowItWorks />
             </div>
