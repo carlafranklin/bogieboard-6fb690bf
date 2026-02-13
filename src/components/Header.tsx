@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Menu, X, User } from 'lucide-react';
+import { Menu, X, User, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -9,13 +9,24 @@ import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
       setIsLoggedIn(!!session);
+      if (session) {
+        const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
+        setIsAdmin(data?.some(r => r.role === 'admin') || false);
+      } else {
+        setIsAdmin(false);
+      }
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setIsLoggedIn(!!session);
+      if (session) {
+        const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
+        setIsAdmin(data?.some(r => r.role === 'admin') || false);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -41,12 +52,22 @@ export function Header() {
 
           <div className="hidden md:flex items-center gap-2">
             {isLoggedIn ? (
-              <Link to="/profile">
-                <Button variant="outline" size="sm">
-                  <User className="w-4 h-4 mr-2" />
-                  Profile
-                </Button>
-              </Link>
+              <>
+                {isAdmin && (
+                  <Link to="/admin">
+                    <Button variant="outline" size="sm">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Admin
+                    </Button>
+                  </Link>
+                )}
+                <Link to="/profile">
+                  <Button variant="outline" size="sm">
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </Button>
+                </Link>
+              </>
             ) : (
               <Link to="/auth">
                 <Button className="bg-primary hover:bg-green-dark text-primary-foreground">Sign In</Button>
@@ -71,12 +92,20 @@ export function Header() {
               <Link to="/events" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Events</Link>
               <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>How It Works</a>
               {isLoggedIn ? (
-                <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
-                  <Button variant="outline" className="w-full mt-2">
-                    <User className="w-4 h-4 mr-2" />
-                    Profile
-                  </Button>
-                </Link>
+                <>
+                  {isAdmin && (
+                    <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" className="w-full">
+                        <Shield className="w-4 h-4 mr-2" />Admin
+                      </Button>
+                    </Link>
+                  )}
+                  <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                    <Button variant="outline" className="w-full">
+                      <User className="w-4 h-4 mr-2" />Profile
+                    </Button>
+                  </Link>
+                </>
               ) : (
                 <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
                   <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">Sign In</Button>
