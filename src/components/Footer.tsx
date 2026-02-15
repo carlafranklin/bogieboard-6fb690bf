@@ -1,6 +1,10 @@
 import { MapPin } from 'lucide-react';
 
-export function Footer() {
+interface FooterProps {
+  isLoggedIn?: boolean;
+}
+
+export function Footer({ isLoggedIn = false }: FooterProps) {
   return (
     <footer className="bg-foreground text-background py-12 px-4">
       <div className="container mx-auto max-w-5xl">
@@ -18,15 +22,17 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Links */}
-          <div>
-            <h4 className="font-semibold mb-4">Company</h4>
-            <ul className="space-y-2 text-background/70">
-              <li><a href="#" className="hover:text-background transition-colors">About</a></li>
-              <li><a href="#" className="hover:text-background transition-colors">Careers</a></li>
-              <li><a href="#" className="hover:text-background transition-colors">Contact</a></li>
-            </ul>
-          </div>
+          {/* Links — only shown for guests */}
+          {!isLoggedIn && (
+            <div>
+              <h4 className="font-semibold mb-4">Company</h4>
+              <ul className="space-y-2 text-background/70">
+                <li><a href="#" className="hover:text-background transition-colors">About</a></li>
+                <li><a href="#" className="hover:text-background transition-colors">Careers</a></li>
+                <li><a href="#" className="hover:text-background transition-colors">Contact</a></li>
+              </ul>
+            </div>
+          )}
 
           <div>
             <h4 className="font-semibold mb-4">Legal</h4>
