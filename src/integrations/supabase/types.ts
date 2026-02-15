@@ -26,6 +26,9 @@ export type Database = {
           event_series_id: string | null
           first_seen_at: string
           id: string
+          image_attribution: string | null
+          image_last_verified_at: string | null
+          image_source: string | null
           image_url: string | null
           is_free: boolean
           last_refreshed_at: string
@@ -53,6 +56,9 @@ export type Database = {
           event_series_id?: string | null
           first_seen_at?: string
           id?: string
+          image_attribution?: string | null
+          image_last_verified_at?: string | null
+          image_source?: string | null
           image_url?: string | null
           is_free?: boolean
           last_refreshed_at?: string
@@ -80,6 +86,9 @@ export type Database = {
           event_series_id?: string | null
           first_seen_at?: string
           id?: string
+          image_attribution?: string | null
+          image_last_verified_at?: string | null
+          image_source?: string | null
           image_url?: string | null
           is_free?: boolean
           last_refreshed_at?: string
@@ -355,6 +364,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feed_registry: {
+        Row: {
+          created_at: string
+          default_city: string | null
+          default_state: string | null
+          default_venue_name: string | null
+          default_zip: string | null
+          enabled: boolean
+          feed_name: string
+          feed_type: Database["public"]["Enums"]["feed_type"]
+          feed_url: string
+          id: string
+          last_error: string | null
+          last_fetched_at: string | null
+          metro_area_slug: string
+          refresh_frequency: Database["public"]["Enums"]["refresh_frequency"]
+          source_category: Database["public"]["Enums"]["source_category"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_city?: string | null
+          default_state?: string | null
+          default_venue_name?: string | null
+          default_zip?: string | null
+          enabled?: boolean
+          feed_name: string
+          feed_type?: Database["public"]["Enums"]["feed_type"]
+          feed_url: string
+          id?: string
+          last_error?: string | null
+          last_fetched_at?: string | null
+          metro_area_slug: string
+          refresh_frequency?: Database["public"]["Enums"]["refresh_frequency"]
+          source_category?: Database["public"]["Enums"]["source_category"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_city?: string | null
+          default_state?: string | null
+          default_venue_name?: string | null
+          default_zip?: string | null
+          enabled?: boolean
+          feed_name?: string
+          feed_type?: Database["public"]["Enums"]["feed_type"]
+          feed_url?: string
+          id?: string
+          last_error?: string | null
+          last_fetched_at?: string | null
+          metro_area_slug?: string
+          refresh_frequency?: Database["public"]["Enums"]["refresh_frequency"]
+          source_category?: Database["public"]["Enums"]["source_category"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       ingestion_errors: {
         Row: {
@@ -652,6 +718,8 @@ export type Database = {
           canonical_event_id: string | null
           created_at: string
           external_event_id: string | null
+          extracted_image_urls: Json | null
+          feed_id: string | null
           fetched_at: string
           id: string
           normalized_hash: string | null
@@ -664,6 +732,8 @@ export type Database = {
           canonical_event_id?: string | null
           created_at?: string
           external_event_id?: string | null
+          extracted_image_urls?: Json | null
+          feed_id?: string | null
           fetched_at?: string
           id?: string
           normalized_hash?: string | null
@@ -676,6 +746,8 @@ export type Database = {
           canonical_event_id?: string | null
           created_at?: string
           external_event_id?: string | null
+          extracted_image_urls?: Json | null
+          feed_id?: string | null
           fetched_at?: string
           id?: string
           normalized_hash?: string | null
@@ -690,6 +762,13 @@ export type Database = {
             columns: ["canonical_event_id"]
             isOneToOne: false
             referencedRelation: "canonical_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_events_feed_id_fkey"
+            columns: ["feed_id"]
+            isOneToOne: false
+            referencedRelation: "feed_registry"
             referencedColumns: ["id"]
           },
           {
@@ -960,9 +1039,12 @@ export type Database = {
     Enums: {
       app_role: "general" | "business" | "admin"
       event_status: "active" | "cancelled" | "postponed" | "expired"
+      feed_type: "rss" | "ical" | "auto"
       gender_type: "male" | "female" | "nonbinary" | "other"
       ingestion_status: "running" | "completed" | "failed" | "partial"
       parse_status: "pending" | "parsed" | "matched" | "failed" | "skipped"
+      refresh_frequency: "hourly" | "daily"
+      source_category: "city" | "parks_rec" | "library" | "venue" | "other"
       source_type: "api" | "rss" | "ical" | "scrape" | "manual"
     }
     CompositeTypes: {
@@ -1093,9 +1175,12 @@ export const Constants = {
     Enums: {
       app_role: ["general", "business", "admin"],
       event_status: ["active", "cancelled", "postponed", "expired"],
+      feed_type: ["rss", "ical", "auto"],
       gender_type: ["male", "female", "nonbinary", "other"],
       ingestion_status: ["running", "completed", "failed", "partial"],
       parse_status: ["pending", "parsed", "matched", "failed", "skipped"],
+      refresh_frequency: ["hourly", "daily"],
+      source_category: ["city", "parks_rec", "library", "venue", "other"],
       source_type: ["api", "rss", "ical", "scrape", "manual"],
     },
   },
