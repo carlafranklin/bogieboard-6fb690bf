@@ -393,6 +393,7 @@ Deno.serve(async (req) => {
     const geoPoints = [
       { lat: 35.2271, lon: -80.8431, radius: 30 },  // Charlotte
       { lat: 36.0726, lon: -79.7920, radius: 25 },   // Greensboro
+      { lat: 35.7796, lon: -78.6382, radius: 30 },   // Raleigh/Durham
     ]
 
     const results: any[] = []
