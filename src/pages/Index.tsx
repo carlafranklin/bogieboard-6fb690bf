@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { HeroSection } from '@/components/HeroSection';
 import { EventShowcase } from '@/components/EventShowcase';
-import { HowItWorks } from '@/components/HowItWorks';
-import { FeaturedEvents } from '@/components/FeaturedEvents';
+import { BrowseEvents } from '@/components/BrowseEvents';
 import { NearbyEvents } from '@/components/NearbyEvents';
 import { SavedEventsHistory } from '@/components/SavedEventsHistory';
 import { Footer } from '@/components/Footer';
@@ -49,25 +48,21 @@ const Index = () => {
       <main className="pt-16">
         {isLoggedIn ? (
           <>
-            {/* Signed-in experience: no hero, nearby events right away */}
+            {/* Signed-in: app-style dashboard — no hero, no marketing */}
             <NearbyEvents
               userId={userId!}
               isSaved={isSaved}
               onToggleSave={(id) => toggleSave(id, 'canonical')}
               savingLoading={savingLoading}
             />
-
-            {/* Past saved events at the bottom */}
             <SavedEventsHistory userId={userId!} />
           </>
         ) : (
           <>
+            {/* Logged-out: content-first browsing experience */}
             <HeroSection onSearch={handleSearch} />
             <EventShowcase />
-            <div id="how-it-works">
-              <HowItWorks />
-            </div>
-            <FeaturedEvents onViewDetails={setSelectedEvent} />
+            <BrowseEvents />
           </>
         )}
       </main>
