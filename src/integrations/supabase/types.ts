@@ -1039,7 +1039,7 @@ export type Database = {
     Enums: {
       app_role: "general" | "business" | "admin"
       event_status: "active" | "cancelled" | "postponed" | "expired"
-      feed_type: "rss" | "ical" | "auto"
+      feed_type: "rss" | "ical" | "auto" | "html"
       gender_type: "male" | "female" | "nonbinary" | "other"
       ingestion_status: "running" | "completed" | "failed" | "partial"
       parse_status: "pending" | "parsed" | "matched" | "failed" | "skipped"
@@ -1175,7 +1175,7 @@ export const Constants = {
     Enums: {
       app_role: ["general", "business", "admin"],
       event_status: ["active", "cancelled", "postponed", "expired"],
-      feed_type: ["rss", "ical", "auto"],
+      feed_type: ["rss", "ical", "auto", "html"],
       gender_type: ["male", "female", "nonbinary", "other"],
       ingestion_status: ["running", "completed", "failed", "partial"],
       parse_status: ["pending", "parsed", "matched", "failed", "skipped"],

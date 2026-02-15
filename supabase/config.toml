@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.ingest-feeds]
 verify_jwt = false
+
+[functions.scrape-events]
+verify_jwt = false
