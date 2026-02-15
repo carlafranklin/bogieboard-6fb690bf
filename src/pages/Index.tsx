@@ -67,7 +67,7 @@ const Index = () => {
         )}
       </main>
 
-      <Footer />
+      <Footer isLoggedIn={isLoggedIn} />
 
       <EventDetailModal
         event={selectedEvent}
