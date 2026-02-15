@@ -25,6 +25,15 @@ export const metroAreas: MetroArea[] = [
       'Randleman', 'Reidsville',
     ],
   },
+  {
+    value: 'raleigh-durham-nc',
+    label: 'Raleigh/Durham, NC Metro',
+    cities: [
+      'Raleigh', 'Durham', 'Chapel Hill', 'Cary', 'Apex',
+      'Morrisville', 'Wake Forest', 'Holly Springs', 'Fuquay-Varina',
+      'Garner', 'Knightdale', 'Carrboro', 'Hillsborough',
+    ],
+  },
 ];
 
 export function getCitiesForMetro(metroValue: string): string[] {
