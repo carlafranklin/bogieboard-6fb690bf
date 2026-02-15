@@ -296,13 +296,18 @@ async function upsertEvents(
         created++
       }
 
-      // Link categories
+      // Link categories — map source categories to app categories
       if (ev.category_names.length > 0) {
+        const mappedSlugs = new Set<string>()
         for (const catName of ev.category_names) {
           if (!catName || catName === 'Undefined') continue
-          const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
           
-          // Upsert category
+          // Use DB function to map to app category
+          const { data: appSlug } = await supabase.rpc('map_to_app_category', { p_source_category: catName })
+          if (appSlug) mappedSlugs.add(appSlug)
+          
+          // Also store the original category
+          const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
           let { data: cat } = await supabase
             .from('categories')
             .select('id')
@@ -322,6 +327,20 @@ async function upsertEvents(
             await supabase
               .from('event_categories')
               .upsert({ event_id: canonicalEventId, category_id: cat.id }, { onConflict: 'event_id,category_id' })
+          }
+        }
+        
+        // Link mapped app categories
+        for (const appSlug of mappedSlugs) {
+          const { data: appCat } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('slug', appSlug)
+            .maybeSingle()
+          if (appCat) {
+            await supabase
+              .from('event_categories')
+              .upsert({ event_id: canonicalEventId, category_id: appCat.id }, { onConflict: 'event_id,category_id' })
           }
         }
       }

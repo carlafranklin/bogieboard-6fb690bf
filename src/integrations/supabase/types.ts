@@ -969,6 +969,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      map_to_app_category: {
+        Args: { p_source_category: string }
+        Returns: string
+      }
       search_events: {
         Args: {
           p_category_slug?: string
