@@ -369,8 +369,25 @@ Deno.serve(async (req) => {
                 continue
               }
 
-              // Link category
+              // Link category — map to app category via DB function
+              const eventId = newEvent!.id
               if (ev.category) {
+                // Map to app category
+                const { data: appSlug } = await supabase.rpc('map_to_app_category', { p_source_category: ev.category })
+                if (appSlug) {
+                  const { data: appCat } = await supabase
+                    .from('categories')
+                    .select('id')
+                    .eq('slug', appSlug)
+                    .maybeSingle()
+                  if (appCat) {
+                    await supabase
+                      .from('event_categories')
+                      .upsert({ event_id: eventId, category_id: appCat.id }, { onConflict: 'event_id,category_id' })
+                  }
+                }
+                
+                // Also store original category
                 const slug = ev.category.toLowerCase().replace(/[^a-z0-9]+/g, '-')
                 let { data: cat } = await supabase
                   .from('categories')
@@ -387,10 +404,26 @@ Deno.serve(async (req) => {
                   cat = newCat
                 }
 
-                if (cat && newEvent) {
+                if (cat) {
                   await supabase
                     .from('event_categories')
-                    .upsert({ event_id: newEvent.id, category_id: cat.id }, { onConflict: 'event_id,category_id' })
+                    .upsert({ event_id: eventId, category_id: cat.id }, { onConflict: 'event_id,category_id' })
+                }
+              } else {
+                // No category from AI — try mapping from title/description
+                const textToMap = `${ev.title} ${ev.description ?? ''}`
+                const { data: appSlug } = await supabase.rpc('map_to_app_category', { p_source_category: textToMap })
+                if (appSlug) {
+                  const { data: appCat } = await supabase
+                    .from('categories')
+                    .select('id')
+                    .eq('slug', appSlug)
+                    .maybeSingle()
+                  if (appCat) {
+                    await supabase
+                      .from('event_categories')
+                      .upsert({ event_id: eventId, category_id: appCat.id }, { onConflict: 'event_id,category_id' })
+                  }
                 }
               }
 

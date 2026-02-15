@@ -532,6 +532,22 @@ async function upsertFeedEvents(
         if (ev.primary_image_url) imageExtracted++
       }
 
+      // Auto-categorize: map title + description to app categories
+      const textToMap = `${ev.title} ${ev.description_short ?? ''} ${feed.source_category ?? ''}`
+      const { data: appSlug } = await supabase.rpc('map_to_app_category', { p_source_category: textToMap })
+      if (appSlug) {
+        const { data: appCat } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('slug', appSlug)
+          .maybeSingle()
+        if (appCat) {
+          await supabase
+            .from('event_categories')
+            .upsert({ event_id: canonicalEventId, category_id: appCat.id }, { onConflict: 'event_id,category_id' })
+        }
+      }
+
       // Track source event with extracted images
       await supabase.from('source_events').insert({
         source_id: sourceId,
