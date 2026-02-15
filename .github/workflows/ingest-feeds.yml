@@ -1,0 +1,25 @@
+name: Ingest Feeds (RSS/iCal)
+
+on:
+  schedule:
+    - cron: '30 */6 * * *' # Every 6 hours, offset from API ingestion
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (no database writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger ingest-feeds function
+        run: |
+          curl -s -w "\nHTTP Status: %{http_code}\n" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -d '{"dry_run": ${{ inputs.dry_run || false }}}' \
+            "https://wxmewdwqeeejoetwyiem.supabase.co/functions/v1/ingest-feeds"
