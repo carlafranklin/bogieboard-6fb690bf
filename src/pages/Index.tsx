@@ -9,13 +9,12 @@ import { SavedEventsHistory } from '@/components/SavedEventsHistory';
 import { Footer } from '@/components/Footer';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SearchParams } from '@/components/SearchModule';
-import { Event } from '@/data/mockEvents';
 import { supabase } from '@/integrations/supabase/client';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
 
 const Index = () => {
   const navigate = useNavigate();
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const { isSaved, toggleSave, loading: savingLoading } = useSavedEvents(userId);
