@@ -1,87 +1,98 @@
 import { motion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import eventFestival from '@/assets/event-festival.jpg';
 import eventFamily from '@/assets/event-family.jpg';
 import eventTrivia from '@/assets/event-trivia.jpg';
 import eventFood from '@/assets/event-food.jpg';
 import eventFitness from '@/assets/event-fitness.jpg';
 
-const showcaseEvents = [
+const suggestions = [
   {
-    id: 1,
+    title: 'Live Music',
+    description: 'Concerts, bands, and live performances near you.',
     image: eventFestival,
-    title: 'Music Festivals',
-    category: 'Outdoor Events',
+    slug: 'live-music',
   },
   {
-    id: 2,
+    title: 'Family & Kids',
+    description: 'Fun for the whole family — festivals, activities, and more.',
     image: eventFamily,
-    title: 'Family Fun',
-    category: 'Family Friendly',
+    slug: 'family-kids',
   },
   {
-    id: 3,
+    title: 'Bar & Nightlife',
+    description: 'Trivia nights, happy hours, and pub events.',
     image: eventTrivia,
-    title: 'Pub Trivia',
-    category: 'Nightlife',
+    slug: 'bar-fun',
   },
   {
-    id: 4,
+    title: 'Food & Drink',
+    description: 'Food festivals, tastings, and culinary experiences.',
     image: eventFood,
-    title: 'Food Festivals',
-    category: 'Food & Drink',
+    slug: 'shopping',
   },
   {
-    id: 5,
+    title: 'Sports & Fitness',
+    description: 'Outdoor fitness, runs, games, and athletic events.',
     image: eventFitness,
-    title: 'Outdoor Fitness',
-    category: 'Athletic',
+    slug: 'sports-games',
+  },
+  {
+    title: 'Arts & Theater',
+    description: 'Gallery openings, plays, comedy shows, and exhibitions.',
+    image: eventFestival,
+    slug: 'arts-theater',
   },
 ];
 
 export function EventShowcase() {
   return (
-    <section className="py-12 px-4 bg-gradient-to-b from-background to-muted/30">
-      <div className="container mx-auto max-w-6xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
+    <section className="py-16 px-6">
+      <div className="container mx-auto max-w-7xl">
+        <motion.h2
+          initial={{ opacity: 0, y: 15 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-8"
+          className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-8"
         >
-          <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-2">
-            Events Happening <span className="text-primary">Everywhere</span>
-          </h2>
-          <p className="text-muted-foreground text-base max-w-lg mx-auto">
-            From festivals to trivia nights, find your next adventure
-          </p>
-        </motion.div>
+          Suggestions
+        </motion.h2>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {showcaseEvents.map((event, index) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {suggestions.map((item, index) => (
             <motion.div
-              key={event.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              whileInView={{ opacity: 1, y: 0, scale: 1 }}
+              key={item.slug}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: index * 0.1 }}
-              whileHover={{ scale: 1.05, y: -5 }}
-              className="group relative aspect-[4/5] rounded-xl overflow-hidden cursor-pointer shadow-card hover:shadow-card-hover transition-shadow"
+              transition={{ delay: index * 0.07 }}
             >
-              <img
-                src={event.image}
-                alt={event.title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate/90 via-slate/40 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-3">
-                <span className="inline-block px-2 py-0.5 bg-accent text-accent-foreground text-xs font-medium rounded-full mb-1">
-                  {event.category}
-                </span>
-                <h3 className="font-display text-sm sm:text-base font-semibold text-white">
-                  {event.title}
-                </h3>
-              </div>
+              <Link
+                to={`/events?category=${item.slug}`}
+                className="group flex items-center gap-4 bg-muted/50 hover:bg-muted rounded-2xl p-5 transition-colors"
+              >
+                <div className="flex-1 space-y-1">
+                  <h3 className="font-display text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {item.description}
+                  </p>
+                  <span className="inline-flex items-center text-sm font-medium text-foreground mt-2 group-hover:text-primary transition-colors">
+                    Details
+                    <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                </div>
+                <div className="shrink-0 w-24 h-24 rounded-xl overflow-hidden">
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                </div>
+              </Link>
             </motion.div>
           ))}
         </div>

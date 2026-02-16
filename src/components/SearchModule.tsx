@@ -23,6 +23,7 @@ import type { DateRange } from 'react-day-picker';
 interface SearchModuleProps {
   onSearch: (params: SearchParams) => void;
   compact?: boolean;
+  variant?: 'default' | 'hero';
 }
 
 export interface SearchParams {
@@ -62,7 +63,7 @@ function formatDateLabel(dateMode: 'single' | 'range', date: Date | undefined, d
   return 'Any date';
 }
 
-export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
+export function SearchModule({ onSearch, compact = false, variant = 'default' }: SearchModuleProps) {
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('all');
   const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
@@ -83,7 +84,6 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
 
   const datePickerContent = (
     <div className="p-3 space-y-3">
-      {/* Mode toggle */}
       <div className="flex gap-1 bg-muted rounded-lg p-1">
         <button
           onClick={() => { setDateMode('single'); setDateRange(undefined); }}
@@ -132,6 +132,7 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
     </div>
   );
 
+  // Compact mode (used in Events page)
   if (compact) {
     return (
       <motion.div
@@ -192,6 +193,76 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
     );
   }
 
+  // Hero variant — dark background, stacked inputs
+  if (variant === 'hero') {
+    return (
+      <div className="space-y-3 max-w-md">
+        <Select value={location} onValueChange={setLocation}>
+          <SelectTrigger className="h-12 bg-white text-foreground border-0 shadow-md">
+            <MapPin className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+            <SelectValue placeholder="Select metro area" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Locations</SelectItem>
+            {metroAreas.map((metro) => (
+              <SelectItem key={metro.value} value={metro.value}>
+                {metro.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={category} onValueChange={setCategory}>
+          <SelectTrigger className="h-12 bg-white text-foreground border-0 shadow-md">
+            <ChevronDown className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((cat) => (
+              <SelectItem key={cat.value} value={cat.value}>
+                {cat.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex gap-3">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "flex-1 h-12 justify-start text-left font-normal bg-white border-0 shadow-md text-foreground",
+                  hasDate && "text-foreground"
+                )}
+              >
+                <Calendar className="w-4 h-4 mr-2 text-muted-foreground shrink-0" />
+                {dateLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              {datePickerContent}
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <Button
+          onClick={handleSearch}
+          size="lg"
+          className="w-full h-12 text-base font-semibold bg-primary hover:bg-green-dark text-primary-foreground shadow-lg"
+        >
+          <Search className="w-5 h-5 mr-2" />
+          Find Events
+        </Button>
+
+        <p className="text-white/50 text-xs">
+          Search 1,200+ events across North Carolina metros
+        </p>
+      </div>
+    );
+  }
+
+  // Default full-width card variant
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -200,7 +271,6 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
       className="bg-card rounded-2xl shadow-lg p-6 md:p-8 max-w-3xl mx-auto"
     >
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Location Dropdown */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground flex items-center gap-2">
             <MapPin className="w-4 h-4 text-primary" />
@@ -221,7 +291,6 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
           </Select>
         </div>
 
-        {/* Category Select */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground flex items-center gap-2">
             <ChevronDown className="w-4 h-4 text-primary" />
@@ -241,7 +310,6 @@ export function SearchModule({ onSearch, compact = false }: SearchModuleProps) {
           </Select>
         </div>
 
-        {/* Date Picker */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" />

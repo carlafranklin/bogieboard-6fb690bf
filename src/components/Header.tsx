@@ -56,9 +56,9 @@ export function Header() {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border"
+      className="fixed top-0 left-0 right-0 z-50 bg-slate/90 backdrop-blur-md border-b border-white/10"
     >
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-6">
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo - smaller when logged in */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
@@ -100,9 +100,9 @@ export function Header() {
           {/* Nav links for non-logged-in */}
           {!isLoggedIn && (
             <nav className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Home</Link>
-              <Link to="/events" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Events</Link>
-              <a href="#how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">How It Works</a>
+              <Link to="/" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Home</Link>
+              <Link to="/events" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Events</Link>
+              <a href="#how-it-works" className="text-sm font-medium text-white/70 hover:text-white transition-colors">How It Works</a>
             </nav>
           )}
 
@@ -129,9 +129,14 @@ export function Header() {
                 </Link>
               </>
             ) : (
-              <Link to="/auth">
-                <Button className="bg-primary hover:bg-green-dark text-primary-foreground">Sign In</Button>
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link to="/auth">
+                  <Button variant="ghost" className="text-white hover:bg-white/10 text-sm">Log in</Button>
+                </Link>
+                <Link to="/auth">
+                  <Button className="bg-white text-slate hover:bg-white/90 text-sm font-medium rounded-full px-5">Sign up</Button>
+                </Link>
+              </div>
             )}
           </div>
 

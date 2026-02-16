@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { SearchModule, SearchParams } from './SearchModule';
 import bogieBoardLogo from '@/assets/bogieboard-logo-v3.png';
+import eventFestival from '@/assets/event-festival.jpg';
 
 interface HeroSectionProps {
   onSearch: (params: SearchParams) => void;
@@ -8,52 +9,72 @@ interface HeroSectionProps {
 
 export function HeroSection({ onSearch }: HeroSectionProps) {
   return (
-    <section className="relative flex flex-col justify-center pt-4 pb-4 px-4 overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute top-10 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-accent/5 rounded-full blur-3xl" />
+    <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-slate">
+      {/* Background image with overlay */}
+      <div className="absolute inset-0">
+        <img
+          src={eventFestival}
+          alt=""
+          className="w-full h-full object-cover opacity-30"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate via-slate/95 to-slate/60" />
       </div>
 
-      <div className="container mx-auto max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-3"
-        >
-          {/* Logo */}
+      <div className="container mx-auto max-w-7xl px-6 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          {/* Left: Content + Search */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="flex justify-center mb-2"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6 }}
+            className="space-y-6"
           >
-            <img 
-              src={bogieBoardLogo} 
-              alt="BogieBoard" 
-              className="h-48 sm:h-64 md:h-80 w-auto object-contain"
+            <motion.img
+              src={bogieBoardLogo}
+              alt="BogieBoard"
+              className="h-20 sm:h-24 w-auto object-contain"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
             />
+
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight">
+              Discover what's
+              <br />
+              <span className="text-primary">happening</span> near you
+            </h1>
+
+            <p className="text-lg text-white/70 max-w-md">
+              Local events, activities, and experiences — all in one place. Find your next adventure.
+            </p>
+
+            {/* Search Module */}
+            <div className="pt-2">
+              <SearchModule onSearch={onSearch} variant="hero" />
+            </div>
           </motion.div>
 
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto mb-1"
+          {/* Right: Featured imagery (hidden on mobile) */}
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="hidden lg:block"
           >
-            Discover local events, activities, and experiences happening near you
-          </motion.p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <SearchModule onSearch={onSearch} />
-        </motion.div>
+            <div className="relative">
+              <div className="absolute -inset-4 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-3xl blur-2xl" />
+              <img
+                src={eventFestival}
+                alt="Festival events"
+                className="relative rounded-2xl shadow-2xl w-full aspect-[4/3] object-cover"
+              />
+              <div className="absolute bottom-4 left-4 right-4 bg-card/90 backdrop-blur-md rounded-xl p-4 shadow-lg">
+                <p className="text-sm font-semibold text-foreground">🎉 1,200+ events this month</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Across Charlotte, Raleigh, and Greensboro</p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       </div>
     </section>
   );
