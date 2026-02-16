@@ -287,6 +287,16 @@ export default function AdminPage() {
     }
   };
 
+  const handleUpdateInterval = async (id: string, hours: number) => {
+    const { error } = await supabase.from('feed_registry').update({ scrape_interval_hours: hours }).eq('id', id);
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      await loadData();
+      toast({ title: 'Frequency updated' });
+    }
+  };
+
   const handleRunScraper = async () => {
     setScrapeRunning(true);
     try {
@@ -626,7 +636,8 @@ export default function AdminPage() {
                           <TableHead>URL</TableHead>
                           <TableHead>Metro</TableHead>
                           <TableHead>City</TableHead>
-                          <TableHead>Status</TableHead>
+                         <TableHead>Status</TableHead>
+                          <TableHead>Frequency</TableHead>
                           <TableHead>Last Scraped</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
@@ -654,6 +665,28 @@ export default function AdminPage() {
                               >
                                 {source.enabled ? 'Active' : 'Disabled'}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={String(source.scrape_interval_hours ?? 12)}
+                                onValueChange={(val) => handleUpdateInterval(source.id, Number(val))}
+                              >
+                                <SelectTrigger className="h-8 w-[130px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="1">Every hour</SelectItem>
+                                  <SelectItem value="2">Every 2 hours</SelectItem>
+                                  <SelectItem value="4">Every 4 hours</SelectItem>
+                                  <SelectItem value="6">Every 6 hours</SelectItem>
+                                  <SelectItem value="8">Every 8 hours</SelectItem>
+                                  <SelectItem value="12">Every 12 hours</SelectItem>
+                                  <SelectItem value="24">Daily</SelectItem>
+                                  <SelectItem value="48">Every 2 days</SelectItem>
+                                  <SelectItem value="72">Every 3 days</SelectItem>
+                                  <SelectItem value="168">Weekly</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {source.last_fetched_at
@@ -690,7 +723,7 @@ export default function AdminPage() {
                         ))}
                         {scrapeSources.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No scrape sources configured</TableCell>
+                            <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No scrape sources configured</TableCell>
                           </TableRow>
                         )}
                       </TableBody>

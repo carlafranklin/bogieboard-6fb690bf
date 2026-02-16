@@ -242,6 +242,17 @@ Deno.serve(async (req) => {
         .single()
 
       try {
+        // Check if feed should be scraped based on interval
+        const intervalHours = (feed as any).scrape_interval_hours ?? 12
+        if (feed.last_fetched_at) {
+          const lastFetched = new Date(feed.last_fetched_at).getTime()
+          const intervalMs = intervalHours * 60 * 60 * 1000
+          if (Date.now() - lastFetched < intervalMs) {
+            console.log(`Skipping ${feed.feed_name}: last scraped ${Math.round((Date.now() - lastFetched) / 3600000)}h ago, interval is ${intervalHours}h`)
+            continue
+          }
+        }
+
         console.log(`Scraping: ${feed.feed_name} (${feed.feed_url})`)
 
         const text = await fetchPage(feed.feed_url)
