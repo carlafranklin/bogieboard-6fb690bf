@@ -387,6 +387,7 @@ export type Database = {
           last_fetched_at: string | null
           metro_area_slug: string
           refresh_frequency: Database["public"]["Enums"]["refresh_frequency"]
+          scrape_interval_hours: number
           source_category: Database["public"]["Enums"]["source_category"]
           updated_at: string
         }
@@ -405,6 +406,7 @@ export type Database = {
           last_fetched_at?: string | null
           metro_area_slug: string
           refresh_frequency?: Database["public"]["Enums"]["refresh_frequency"]
+          scrape_interval_hours?: number
           source_category?: Database["public"]["Enums"]["source_category"]
           updated_at?: string
         }
@@ -423,6 +425,7 @@ export type Database = {
           last_fetched_at?: string | null
           metro_area_slug?: string
           refresh_frequency?: Database["public"]["Enums"]["refresh_frequency"]
+          scrape_interval_hours?: number
           source_category?: Database["public"]["Enums"]["source_category"]
           updated_at?: string
         }
