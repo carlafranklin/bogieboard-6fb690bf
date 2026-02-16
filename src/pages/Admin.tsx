@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog } from 'lucide-react';
+import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2 } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { categoryNameSchema, subcategoryNameSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
@@ -22,10 +22,17 @@ type Profile = Tables<'profiles'>;
 type Category = Tables<'categories'>;
 type Subcategory = Tables<'subcategories'>;
 type UserRole = Tables<'user_roles'>;
+type FeedRegistry = Tables<'feed_registry'>;
 
 interface UserWithRole extends Profile {
   roles: string[];
 }
+
+const METRO_OPTIONS = [
+  { slug: 'charlotte-nc', label: 'Charlotte, NC Metro' },
+  { slug: 'greensboro-nc', label: 'Greensboro, NC Metro' },
+  { slug: 'raleigh-durham-nc', label: 'Raleigh/Durham, NC Metro' },
+];
 
 export default function AdminPage() {
   const navigate = useNavigate();
@@ -48,6 +55,14 @@ export default function AdminPage() {
 
   // Stats state
   const [stats, setStats] = useState({ totalUsers: 0, generalUsers: 0, businessUsers: 0, adminUsers: 0, totalEvents: 0, totalCategories: 0 });
+
+  // Scrape sources state
+  const [scrapeSources, setScrapeSources] = useState<FeedRegistry[]>([]);
+  const [newFeedName, setNewFeedName] = useState('');
+  const [newFeedUrl, setNewFeedUrl] = useState('');
+  const [newFeedMetro, setNewFeedMetro] = useState('');
+  const [newFeedCity, setNewFeedCity] = useState('');
+  const [scrapeRunning, setScrapeRunning] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -73,12 +88,13 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes] = await Promise.all([
+    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes, feedsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
       supabase.from('categories').select('*').order('display_order'),
       supabase.from('subcategories').select('*').order('name'),
       supabase.from('events').select('id'),
+      supabase.from('feed_registry').select('*').eq('feed_type', 'html').order('feed_name'),
     ]);
 
     // Merge profiles with roles
@@ -94,6 +110,7 @@ export default function AdminPage() {
     const subs = subsRes.data || [];
     setCategories(cats);
     setSubcategories(subs);
+    setScrapeSources(feedsRes.data || []);
 
     const roleCount = (role: string) => allRoles.filter(r => r.role === role).length;
     setStats({
@@ -216,6 +233,88 @@ export default function AdminPage() {
     }
   };
 
+  // Scrape source CRUD
+  const handleAddScrapeSource = async () => {
+    if (!newFeedName.trim() || !newFeedUrl.trim() || !newFeedMetro) {
+      toast({ title: 'Missing fields', description: 'Name, URL, and Metro area are required.', variant: 'destructive' });
+      return;
+    }
+    try {
+      new URL(newFeedUrl);
+    } catch {
+      toast({ title: 'Invalid URL', description: 'Please enter a valid URL.', variant: 'destructive' });
+      return;
+    }
+    const { error } = await supabase.from('feed_registry').insert({
+      feed_name: newFeedName.trim(),
+      feed_url: newFeedUrl.trim(),
+      feed_type: 'html' as any,
+      metro_area_slug: newFeedMetro,
+      default_city: newFeedCity.trim() || null,
+      default_state: 'NC',
+      source_category: 'other' as any,
+      enabled: true,
+    });
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      setNewFeedName('');
+      setNewFeedUrl('');
+      setNewFeedMetro('');
+      setNewFeedCity('');
+      await loadData();
+      toast({ title: 'Scrape source added' });
+    }
+  };
+
+  const handleDeleteScrapeSource = async (id: string) => {
+    const { error } = await supabase.from('feed_registry').delete().eq('id', id);
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      await loadData();
+      toast({ title: 'Scrape source deleted' });
+    }
+  };
+
+  const handleToggleScrapeSource = async (id: string, enabled: boolean) => {
+    const { error } = await supabase.from('feed_registry').update({ enabled: !enabled }).eq('id', id);
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      await loadData();
+      toast({ title: enabled ? 'Source disabled' : 'Source enabled' });
+    }
+  };
+
+  const handleRunScraper = async () => {
+    setScrapeRunning(true);
+    try {
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scrape-events`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      const data = await resp.json();
+      if (data.success) {
+        const totalCreated = data.results?.reduce((sum: number, r: any) => sum + (r.created || 0), 0) || 0;
+        const totalFound = data.results?.reduce((sum: number, r: any) => sum + (r.events_found || 0), 0) || 0;
+        toast({ title: 'Scrape complete', description: `Found ${totalFound} events, created ${totalCreated} new.` });
+      } else {
+        toast({ title: 'Scrape error', description: data.error || 'Unknown error', variant: 'destructive' });
+      }
+    } catch (e) {
+      toast({ title: 'Error', description: 'Failed to run scraper.', variant: 'destructive' });
+    } finally {
+      setScrapeRunning(false);
+    }
+  };
+
   if (!isAdmin || loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -240,7 +339,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <h1 className="font-display text-2xl font-bold text-foreground">Admin Dashboard</h1>
-                <p className="text-sm text-muted-foreground">Manage users, categories, and view statistics</p>
+                <p className="text-sm text-muted-foreground">Manage users, categories, scrape sources, and view statistics</p>
               </div>
             </div>
 
@@ -252,7 +351,7 @@ export default function AdminPage() {
                 { label: 'Business', value: stats.businessUsers, color: 'bg-purple-light text-purple-dark' },
                 { label: 'Admins', value: stats.adminUsers, color: 'bg-yellow-light text-yellow-foreground' },
                 { label: 'Events', value: stats.totalEvents, color: 'bg-secondary/10 text-secondary' },
-                { label: 'Categories', value: stats.totalCategories, color: 'bg-muted text-muted-foreground' },
+                { label: 'Scrape Sources', value: scrapeSources.length, color: 'bg-muted text-muted-foreground' },
               ].map(stat => (
                 <div key={stat.label} className="bg-card rounded-xl border border-border p-4 text-center">
                   <p className="text-2xl font-bold text-foreground">{stat.value}</p>
@@ -266,6 +365,7 @@ export default function AdminPage() {
               <TabsList className="mb-6">
                 <TabsTrigger value="users" className="gap-2"><Users className="w-4 h-4" />Users</TabsTrigger>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
+                <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
                 <TabsTrigger value="stats" className="gap-2"><BarChart3 className="w-4 h-4" />Statistics</TabsTrigger>
               </TabsList>
 
@@ -488,6 +588,117 @@ export default function AdminPage() {
                 </div>
               </TabsContent>
 
+              {/* Scrape Sources Tab */}
+              <TabsContent value="scrape">
+                <div className="bg-card rounded-xl border border-border p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="font-display text-lg font-semibold text-foreground">HTML Scrape Sources</h2>
+                    <Button onClick={handleRunScraper} disabled={scrapeRunning} size="sm" className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">
+                      {scrapeRunning ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Globe className="w-4 h-4 mr-1" />}
+                      {scrapeRunning ? 'Scraping...' : 'Run Scraper Now'}
+                    </Button>
+                  </div>
+
+                  {/* Add New Source */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
+                    <Input placeholder="Source name" value={newFeedName} onChange={e => setNewFeedName(e.target.value)} />
+                    <Input placeholder="URL (https://...)" value={newFeedUrl} onChange={e => setNewFeedUrl(e.target.value)} />
+                    <Select value={newFeedMetro} onValueChange={setNewFeedMetro}>
+                      <SelectTrigger><SelectValue placeholder="Metro area" /></SelectTrigger>
+                      <SelectContent>
+                        {METRO_OPTIONS.map(m => (
+                          <SelectItem key={m.slug} value={m.slug}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input placeholder="Default city (optional)" value={newFeedCity} onChange={e => setNewFeedCity(e.target.value)} />
+                    <Button onClick={handleAddScrapeSource} className="bg-primary hover:bg-green-dark text-primary-foreground">
+                      <Plus className="w-4 h-4 mr-1" />Add Source
+                    </Button>
+                  </div>
+
+                  {/* Sources Table */}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>URL</TableHead>
+                          <TableHead>Metro</TableHead>
+                          <TableHead>City</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Last Scraped</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {scrapeSources.map(source => (
+                          <TableRow key={source.id}>
+                            <TableCell className="font-medium">{source.feed_name}</TableCell>
+                            <TableCell>
+                              <a href={source.feed_url} target="_blank" rel="noopener noreferrer" className="text-secondary hover:underline text-sm truncate block max-w-[200px]">
+                                {source.feed_url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                              </a>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {METRO_OPTIONS.find(m => m.slug === source.metro_area_slug)?.label.split(',')[0] || source.metro_area_slug}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{source.default_city || '—'}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={source.enabled ? 'default' : 'secondary'}
+                                className={`text-xs cursor-pointer ${source.enabled ? 'bg-primary/80' : ''}`}
+                                onClick={() => handleToggleScrapeSource(source.id, source.enabled)}
+                              >
+                                {source.enabled ? 'Active' : 'Disabled'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {source.last_fetched_at
+                                ? new Date(source.last_fetched_at).toLocaleDateString()
+                                : 'Never'}
+                              {source.last_error && (
+                                <span className="block text-xs text-destructive truncate max-w-[150px]" title={source.last_error}>
+                                  Error: {source.last_error}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="icon" variant="ghost" className="text-destructive h-8 w-8">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete "{source.feed_name}"?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove this scrape source. Events already scraped will remain in the database.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDeleteScrapeSource(source.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {scrapeSources.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No scrape sources configured</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </TabsContent>
+
               {/* Stats Tab */}
               <TabsContent value="stats">
                 <div className="bg-card rounded-xl border border-border p-6">
@@ -527,8 +738,8 @@ export default function AdminPage() {
                           <p className="text-xs text-muted-foreground mt-1">Subcategories</p>
                         </div>
                         <div className="bg-muted/50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-foreground">{stats.totalUsers}</p>
-                          <p className="text-xs text-muted-foreground mt-1">Total Users</p>
+                          <p className="text-3xl font-bold text-foreground">{scrapeSources.length}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Scrape Sources</p>
                         </div>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
