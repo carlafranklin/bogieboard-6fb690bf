@@ -116,11 +116,14 @@ export function PersonalizedEvents({ userId }: PersonalizedEventsProps) {
     age_restriction: e.age_restriction || null,
     status: 'active' as const,
     venue_name: e.venue || null,
+    venue_address: null as string | null,
     venue_city: e.city || null,
     venue_state: e.state || null,
     venue_zip: e.zip_code || null,
     metro_name: null,
     category_names: getCategorySlug(e.category_id) ? [getCategorySlug(e.category_id)] : null,
+    source_url: null as string | null,
+    discount_info: null as string | null,
   });
 
   if (loading) {

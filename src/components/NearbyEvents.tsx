@@ -95,6 +95,8 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
           image_source: 'feed',
           image_attribution: null,
           image_last_verified_at: null,
+          source_url: d.source_url ?? null,
+          discount_info: d.discount_info ?? null,
         })));
       }
 
