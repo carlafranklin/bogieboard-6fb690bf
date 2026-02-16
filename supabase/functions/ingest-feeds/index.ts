@@ -518,6 +518,7 @@ async function upsertFeedEvents(
             image_url: ev.primary_image_url,
             image_source: ev.primary_image_url ? 'feed' : 'fallback',
             image_last_verified_at: ev.primary_image_url ? new Date().toISOString() : null,
+            source_url: ev.external_url,
           })
           .select('id')
           .single()

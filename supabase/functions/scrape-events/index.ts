@@ -359,6 +359,7 @@ Deno.serve(async (req) => {
                   normalized_hash: hash,
                   status: 'active',
                   image_source: 'scrape',
+                  source_url: ev.ticket_url || feed.feed_url,
                 })
                 .select('id')
                 .single()

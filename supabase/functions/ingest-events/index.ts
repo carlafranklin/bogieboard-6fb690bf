@@ -283,6 +283,7 @@ async function upsertEvents(
             metro_area_id: metroAreaId,
             normalized_hash: hash,
             status: 'active',
+            source_url: ev.source_url,
           })
           .select('id')
           .single()

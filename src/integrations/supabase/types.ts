@@ -22,6 +22,7 @@ export type Database = {
           currency: string
           description_long: string | null
           description_short: string | null
+          discount_info: string | null
           end_time: string | null
           event_series_id: string | null
           first_seen_at: string
@@ -38,6 +39,7 @@ export type Database = {
           organizer_name: string | null
           price_max: number | null
           price_min: number | null
+          source_url: string | null
           start_time: string
           status: Database["public"]["Enums"]["event_status"]
           ticket_url: string | null
@@ -52,6 +54,7 @@ export type Database = {
           currency?: string
           description_long?: string | null
           description_short?: string | null
+          discount_info?: string | null
           end_time?: string | null
           event_series_id?: string | null
           first_seen_at?: string
@@ -68,6 +71,7 @@ export type Database = {
           organizer_name?: string | null
           price_max?: number | null
           price_min?: number | null
+          source_url?: string | null
           start_time: string
           status?: Database["public"]["Enums"]["event_status"]
           ticket_url?: string | null
@@ -82,6 +86,7 @@ export type Database = {
           currency?: string
           description_long?: string | null
           description_short?: string | null
+          discount_info?: string | null
           end_time?: string | null
           event_series_id?: string | null
           first_seen_at?: string
@@ -98,6 +103,7 @@ export type Database = {
           organizer_name?: string | null
           price_max?: number | null
           price_min?: number | null
+          source_url?: string | null
           start_time?: string
           status?: Database["public"]["Enums"]["event_status"]
           ticket_url?: string | null
@@ -987,6 +993,7 @@ export type Database = {
           all_day: boolean
           category_names: string[]
           description_short: string
+          discount_info: string
           end_time: string
           event_id: string
           image_url: string
@@ -994,10 +1001,12 @@ export type Database = {
           metro_name: string
           price_max: number
           price_min: number
+          source_url: string
           start_time: string
           status: Database["public"]["Enums"]["event_status"]
           ticket_url: string
           title: string
+          venue_address: string
           venue_city: string
           venue_lat: number
           venue_lon: number

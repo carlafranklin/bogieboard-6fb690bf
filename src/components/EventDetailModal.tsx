@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Clock, MapPin, ExternalLink, Users, DollarSign } from 'lucide-react';
+import { X, Calendar, Clock, MapPin, ExternalLink, Users, DollarSign, Tag, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { SaveEventButton } from './SaveEventButton';
 import { format, parseISO } from 'date-fns';
 
 interface CanonicalEvent {
@@ -18,28 +19,79 @@ interface CanonicalEvent {
   image_url: string | null;
   age_restriction: number | null;
   venue_name: string | null;
+  venue_address: string | null;
   venue_city: string | null;
   venue_state: string | null;
   venue_zip: string | null;
   category_names: string[] | null;
+  source_url: string | null;
+  discount_info: string | null;
 }
 
 interface EventDetailModalProps {
   event: CanonicalEvent | null;
   onClose: () => void;
+  userId?: string | null;
+  isSaved?: boolean;
+  onToggleSave?: () => void;
+  saveLoading?: boolean;
 }
 
-export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
+// Category fallback images
+const categoryFallbackImages: Record<string, string> = {
+  'live-music': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&h=450&fit=crop',
+  'festivals': 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&h=450&fit=crop',
+  'business': 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=450&fit=crop',
+  'bar-fun': 'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=800&h=450&fit=crop',
+  'shopping': 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&h=450&fit=crop',
+  'family-kids': 'https://images.unsplash.com/photo-1484820540004-14229fe36ca4?w=800&h=450&fit=crop',
+  'movies': 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=800&h=450&fit=crop',
+  'religious-spiritual': 'https://images.unsplash.com/photo-1507692049790-de58290a4334?w=800&h=450&fit=crop',
+  'sports-games': 'https://images.unsplash.com/photo-1461896836934-ber91080e9f?w=800&h=450&fit=crop',
+  'lecture-series': 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&h=450&fit=crop',
+  'political-events': 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&h=450&fit=crop',
+  'arts-theater': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=450&fit=crop',
+};
+
+const defaultFallbackImage = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&h=450&fit=crop';
+
+function getEventImage(event: CanonicalEvent): string {
+  if (event.image_url) return event.image_url;
+  const cats = event.category_names ?? [];
+  for (const cat of cats) {
+    const slug = cat.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (categoryFallbackImages[slug]) return categoryFallbackImages[slug];
+  }
+  return defaultFallbackImage;
+}
+
+export function EventDetailModal({ event, onClose, userId, isSaved = false, onToggleSave, saveLoading }: EventDetailModalProps) {
   if (!event) return null;
 
   const formattedDate = format(parseISO(event.start_time), 'EEEE, MMMM d, yyyy');
   const formattedTime = event.all_day ? 'All Day' : format(parseISO(event.start_time), 'h:mm a');
+  const eventImage = getEventImage(event);
 
   const priceLabel = event.is_free
     ? 'Free'
     : event.price_min
       ? `$${Number(event.price_min)}${event.price_max && event.price_max !== event.price_min ? ` – $${Number(event.price_max)}` : ''}`
       : 'See details';
+
+  // Build full address string
+  const addressParts = [
+    event.venue_address,
+    event.venue_city,
+    event.venue_state,
+    event.venue_zip,
+  ].filter(Boolean);
+  const fullAddress = addressParts.join(', ');
+
+  // Google Maps link
+  const mapsQuery = encodeURIComponent(
+    [event.venue_name, event.venue_address, event.venue_city, event.venue_state, event.venue_zip].filter(Boolean).join(', ')
+  );
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
   return (
     <AnimatePresence>
@@ -78,27 +130,34 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
                 ))}
               </div>
             )}
-            {event.image_url ? (
-              <img
-                src={event.image_url}
-                alt={event.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                <span className="text-6xl">🎉</span>
-              </div>
-            )}
+            <img
+              src={eventImage}
+              alt={event.title}
+              className="w-full h-full object-cover"
+            />
           </div>
 
           {/* Content */}
           <div className="p-6 space-y-6">
-            <div>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-2">
-                {event.title}
-              </h2>
-              {event.description_short && (
-                <p className="text-muted-foreground">{event.description_short}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-display text-2xl sm:text-3xl font-bold text-foreground mb-2">
+                  {event.title}
+                </h2>
+                {event.description_short && (
+                  <p className="text-muted-foreground">{event.description_short}</p>
+                )}
+              </div>
+              {onToggleSave && (
+                <SaveEventButton
+                  eventId={event.event_id}
+                  isSaved={isSaved}
+                  isLoggedIn={!!userId}
+                  onToggle={onToggleSave}
+                  loading={saveLoading}
+                  size="sm"
+                  className="shrink-0"
+                />
               )}
             </div>
 
@@ -120,14 +179,21 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
               </div>
 
               {event.venue_name && (
-                <div className="flex items-start gap-3 p-4 bg-muted rounded-xl">
+                <div className="flex items-start gap-3 p-4 bg-muted rounded-xl sm:col-span-2">
                   <MapPin className="w-5 h-5 text-primary mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm text-muted-foreground">Location</p>
                     <p className="font-medium text-foreground">{event.venue_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {[event.venue_city, event.venue_state, event.venue_zip].filter(Boolean).join(', ')}
-                    </p>
+                    {fullAddress && (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {fullAddress} →
+                      </a>
+                    )}
                   </div>
                 </div>
               )}
@@ -139,6 +205,16 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
                   <p className="font-medium text-foreground">{priceLabel}</p>
                 </div>
               </div>
+
+              {event.discount_info && (
+                <div className="flex items-start gap-3 p-4 bg-primary/10 rounded-xl border border-primary/20">
+                  <Tag className="w-5 h-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Deal / Discount</p>
+                    <p className="font-medium text-primary">{event.discount_info}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {event.age_restriction && (
@@ -160,6 +236,18 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
                   <a href={event.ticket_url} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="w-4 h-4 mr-2" />
                     {event.is_free ? 'Get Details' : 'Get Tickets'}
+                  </a>
+                </Button>
+              )}
+              {event.source_url && event.source_url !== event.ticket_url && (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                >
+                  <a href={event.source_url} target="_blank" rel="noopener noreferrer">
+                    <Link2 className="w-4 h-4 mr-2" />
+                    View Original Source
                   </a>
                 </Button>
               )}
