@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, MapPin, ExternalLink, Users, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { format, parseISO } from 'date-fns';
 
 interface CanonicalEvent {
@@ -70,11 +71,11 @@ export function EventDetailModal({ event, onClose }: EventDetailModalProps) {
           {/* Image Header */}
           <div className="aspect-video relative bg-muted">
             <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent" />
-            {event.category_names?.[0] && (
-              <div className="absolute bottom-4 left-4 z-10">
-                <span className="bg-accent text-accent-foreground text-xs font-medium px-2.5 py-1 rounded-full">
-                  {event.category_names[0]}
-                </span>
+            {event.category_names && event.category_names.length > 0 && (
+              <div className="absolute bottom-4 left-4 z-10 flex flex-wrap gap-1.5">
+                {event.category_names.map((cat) => (
+                  <CategoryBadge key={cat} category={cat} />
+                ))}
               </div>
             )}
             {event.image_url ? (

@@ -35,17 +35,32 @@ export const categoryLabels: Record<string, string> = {
 
 export const categoryColors: Record<string, string> = {
   'live-music': 'bg-purple-light text-purple-dark',
-  'festivals': 'bg-yellow-light text-yellow-foreground',
+  'festivals': 'bg-yellow-light text-foreground',
   'business': 'bg-muted text-muted-foreground',
   'bar-fun': 'bg-purple-light text-purple-dark',
   'shopping': 'bg-green-light text-green-dark',
   'family-kids': 'bg-green-light text-green-dark',
-  'movies': 'bg-secondary/10 text-secondary',
-  'religious-spiritual': 'bg-gold/20 text-gold',
+  'movies': 'bg-purple-light text-purple-dark',
+  'religious-spiritual': 'bg-gold-light text-foreground',
   'sports-games': 'bg-green-light text-green-dark',
   'lecture-series': 'bg-muted text-muted-foreground',
-  'political-events': 'bg-purple-light text-purple-dark',
-  'arts-theater': 'bg-secondary/10 text-secondary',
+  'political-events': 'bg-muted text-muted-foreground',
+  'arts-theater': 'bg-yellow-light text-foreground',
+};
+
+export const categoryIcons: Record<string, string> = {
+  'live-music': 'Music',
+  'festivals': 'PartyPopper',
+  'business': 'Briefcase',
+  'bar-fun': 'Beer',
+  'shopping': 'ShoppingBag',
+  'family-kids': 'Baby',
+  'movies': 'Film',
+  'religious-spiritual': 'Church',
+  'sports-games': 'Trophy',
+  'lecture-series': 'GraduationCap',
+  'political-events': 'Landmark',
+  'arts-theater': 'Palette',
 };
 
 export const mockEvents: Event[] = [

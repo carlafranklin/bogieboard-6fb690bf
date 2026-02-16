@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign } from 'lucide-react';
+import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -217,11 +218,11 @@ export default function EventsPage() {
                           <div className="flex flex-col sm:flex-row">
                             {/* Image */}
                             <div className="sm:w-48 sm:min-h-[140px] relative overflow-hidden bg-muted shrink-0">
-                              {event.category_names?.[0] && (
-                                <div className="absolute top-2 left-2 z-10">
-                                  <span className="bg-accent text-accent-foreground text-xs font-medium px-2 py-0.5 rounded-full">
-                                    {event.category_names[0]}
-                                  </span>
+                              {event.category_names && event.category_names.length > 0 && (
+                                <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1">
+                                  {event.category_names.map((cat) => (
+                                    <CategoryBadge key={cat} category={cat} className="text-[10px] px-1.5 py-0.5" />
+                                  ))}
                                 </div>
                               )}
                               {event.is_free && (
