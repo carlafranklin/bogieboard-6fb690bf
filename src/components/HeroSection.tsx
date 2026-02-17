@@ -9,9 +9,9 @@ interface HeroSectionProps {
 
 export function HeroSection({ onSearch }: HeroSectionProps) {
   return (
-    <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-background">
+    <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-card">
       {/* Subtle gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-green-light via-background to-purple-light" />
+      <div className="absolute inset-0 bg-gradient-to-br from-card via-card to-green-light/30" />
       <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-yellow-light/40 to-transparent" />
 
       <div className="container mx-auto max-w-7xl px-6 relative z-10">
