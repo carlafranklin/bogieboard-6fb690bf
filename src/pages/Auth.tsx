@@ -14,6 +14,7 @@ import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isPartnerSignup, setIsPartnerSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,13 +23,20 @@ export default function AuthPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        navigate('/');
+        // Check if partner to redirect to partner dashboard
+        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
+        const isPartner = roles?.some(r => r.role === 'partner') || false;
+        navigate(isPartner ? '/partner-dashboard' : '/');
       }
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate('/');
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
+        const isPartner = roles?.some(r => r.role === 'partner') || false;
+        navigate(isPartner ? '/partner-dashboard' : '/');
+      }
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
@@ -42,12 +50,16 @@ export default function AuthPage() {
         if (error) throw error;
         toast({ title: 'Welcome back!' });
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
+        // If partner signup, add partner role
+        if (isPartnerSignup && signUpData.user) {
+          await supabase.from('user_roles').insert({ user_id: signUpData.user.id, role: 'partner' });
+        }
         toast({ title: 'Check your email', description: 'We sent you a confirmation link.' });
       }
     } catch (error: any) {
@@ -90,10 +102,10 @@ export default function AuthPage() {
           <div className="text-center mb-8">
             <img src={bogieBoardLogo} alt="BogieBoard" className="h-12 mx-auto mb-4" />
             <h1 className="font-display text-2xl font-bold text-foreground">
-              {isLogin ? 'Welcome Back' : 'Create Account'}
+              {isLogin ? 'Welcome Back' : isPartnerSignup ? 'Partner Sign Up' : 'Create Account'}
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {isLogin ? 'Sign in to your account' : 'Join BogieBoard today'}
+              {isLogin ? 'Sign in to your account' : isPartnerSignup ? 'Create a Partner Member account to post events' : 'Join BogieBoard today'}
             </p>
           </div>
 
@@ -176,12 +188,27 @@ export default function AuthPage() {
             <p className="text-center text-sm text-muted-foreground mt-4">
               {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
               <button
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={() => { setIsLogin(!isLogin); setIsPartnerSignup(false); }}
                 className="text-primary hover:underline font-medium"
               >
                 {isLogin ? 'Sign up' : 'Sign in'}
               </button>
             </p>
+            {!isLogin && !isPartnerSignup && (
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                Are you a business?{' '}
+                <button onClick={() => setIsPartnerSignup(true)} className="text-secondary hover:underline font-medium">
+                  Sign up as a Partner Member
+                </button>
+              </p>
+            )}
+            {isPartnerSignup && (
+              <p className="text-center text-sm text-muted-foreground mt-2">
+                <button onClick={() => setIsPartnerSignup(false)} className="text-primary hover:underline font-medium">
+                  Sign up as a regular user instead
+                </button>
+              </p>
+            )}
           </div>
 
           <p className="text-center text-xs text-muted-foreground mt-4">

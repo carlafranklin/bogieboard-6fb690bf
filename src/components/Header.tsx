@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Menu, X, User, Shield, Search, MapPin } from 'lucide-react';
+import { Menu, X, User, Shield, Search, MapPin, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPartner, setIsPartner] = useState(false);
   const navigate = useNavigate();
 
   // Inline search state
@@ -30,8 +31,10 @@ export function Header() {
       if (session) {
         const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
         setIsAdmin(data?.some(r => r.role === 'admin') || false);
+        setIsPartner(data?.some(r => r.role === 'partner') || false);
       } else {
         setIsAdmin(false);
+        setIsPartner(false);
       }
     });
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -39,6 +42,7 @@ export function Header() {
       if (session) {
         const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
         setIsAdmin(data?.some(r => r.role === 'admin') || false);
+        setIsPartner(data?.some(r => r.role === 'partner') || false);
       }
     });
     return () => subscription.unsubscribe();
@@ -121,6 +125,14 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
+                {isPartner && (
+                  <Link to="/partner-dashboard">
+                    <Button variant="outline" size="sm">
+                      <Building2 className="w-4 h-4 mr-2" />
+                      Partner
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/profile">
                   <Button variant="outline" size="sm">
                     <User className="w-4 h-4 mr-2" />
@@ -180,6 +192,13 @@ export function Header() {
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Shield className="w-4 h-4 mr-2" />Admin
+                      </Button>
+                    </Link>
+                  )}
+                  {isPartner && (
+                    <Link to="/partner-dashboard" onClick={() => setIsMenuOpen(false)}>
+                      <Button variant="outline" className="w-full">
+                        <Building2 className="w-4 h-4 mr-2" />Partner Dashboard
                       </Button>
                     </Link>
                   )}
