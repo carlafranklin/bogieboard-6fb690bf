@@ -9,16 +9,10 @@ interface HeroSectionProps {
 
 export function HeroSection({ onSearch }: HeroSectionProps) {
   return (
-    <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-slate">
-      {/* Background image with overlay */}
-      <div className="absolute inset-0">
-        <img
-          src={eventFestival}
-          alt=""
-          className="w-full h-full object-cover opacity-30"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate via-slate/95 to-slate/60" />
-      </div>
+    <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-background">
+      {/* Subtle gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-green-light via-background to-purple-light" />
+      <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-yellow-light/40 to-transparent" />
 
       <div className="container mx-auto max-w-7xl px-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -32,19 +26,19 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
             <motion.img
               src={bogieBoardLogo}
               alt="BogieBoard"
-              className="h-20 sm:h-24 w-auto object-contain"
+              className="h-28 sm:h-36 w-auto object-contain"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             />
 
-            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight">
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
               Discover what's
               <br />
-              <span className="text-primary">happening</span> near you
+              <span className="text-primary">happening</span> near <span className="text-secondary">you</span>
             </h1>
 
-            <p className="text-lg text-white/70 max-w-md">
+            <p className="text-lg text-muted-foreground max-w-md">
               Local events, activities, and experiences — all in one place. Find your next adventure.
             </p>
 
@@ -62,7 +56,7 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
             className="hidden lg:block"
           >
             <div className="relative">
-              <div className="absolute -inset-4 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-3xl blur-2xl" />
+              <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-accent/30 rounded-3xl blur-2xl" />
               <img
                 src={eventFestival}
                 alt="Festival events"

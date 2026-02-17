@@ -48,7 +48,7 @@ const suggestions = [
 
 export function EventShowcase() {
   return (
-    <section className="py-16 px-6">
+    <section className="py-16 px-6 bg-gradient-to-b from-background to-purple-light/30">
       <div className="container mx-auto max-w-7xl">
         <motion.h2
           initial={{ opacity: 0, y: 15 }}
@@ -70,7 +70,7 @@ export function EventShowcase() {
             >
               <Link
                 to={`/events?category=${item.slug}`}
-                className="group flex items-center gap-4 bg-muted/50 hover:bg-muted rounded-2xl p-5 transition-colors"
+                className="group flex items-center gap-4 bg-card hover:bg-green-light border border-border rounded-2xl p-5 transition-colors shadow-sm"
               >
                 <div className="flex-1 space-y-1">
                   <h3 className="font-display text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
