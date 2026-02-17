@@ -10,6 +10,7 @@ import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import PartnerDashboard from "./pages/PartnerDashboard";
 import PartnerPage from "./pages/PartnerPage";
+import PartnerMember from "./pages/PartnerMember";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="/partner-dashboard" element={<PartnerDashboard />} />
           <Route path="/partners/:slug" element={<PartnerPage />} />
+          <Route path="/partner-member" element={<PartnerMember />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
