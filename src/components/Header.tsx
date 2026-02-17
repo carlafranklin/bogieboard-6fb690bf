@@ -100,9 +100,9 @@ export function Header() {
           {/* Nav links for non-logged-in */}
           {!isLoggedIn && (
             <nav className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-sm font-medium text-secondary-foreground/70 hover:text-secondary-foreground transition-colors">Home</Link>
-              <Link to="/events" className="text-sm font-medium text-secondary-foreground/70 hover:text-secondary-foreground transition-colors">Events</Link>
-              <a href="#how-it-works" className="text-sm font-medium text-secondary-foreground/70 hover:text-secondary-foreground transition-colors">How It Works</a>
+              <Link to="/" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Home</Link>
+              <Link to="/events" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Events</Link>
+              <a href="#how-it-works" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">How It Works</a>
             </nav>
           )}
 
@@ -110,7 +110,7 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {isLoggedIn ? (
               <>
-                <Link to="/events" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-2">
+                <Link to="/events" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors mr-2">
                   Events
                 </Link>
                 {isAdmin && (
@@ -131,10 +131,10 @@ export function Header() {
             ) : (
               <div className="flex items-center gap-3">
                 <Link to="/auth">
-                  <Button variant="ghost" className="text-secondary-foreground hover:bg-secondary-foreground/10 text-sm">Log in</Button>
+                  <Button variant="ghost" className="text-accent hover:bg-accent/10 text-sm">Log in</Button>
                 </Link>
                 <Link to="/auth">
-                  <Button className="bg-secondary-foreground text-secondary hover:bg-secondary-foreground/90 text-sm font-medium rounded-full px-5">Sign up</Button>
+                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90 text-sm font-medium rounded-full px-5">Sign up / in</Button>
                 </Link>
               </div>
             )}
@@ -175,7 +175,7 @@ export function Header() {
                       <Search className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  <Link to="/events" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Events</Link>
+                  <Link to="/events" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Events</Link>
                   {isAdmin && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
@@ -191,11 +191,11 @@ export function Header() {
                 </>
               ) : (
                 <>
-                  <Link to="/" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Home</Link>
-                  <Link to="/events" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>Events</Link>
-                  <a href="#how-it-works" className="text-sm font-medium text-foreground" onClick={() => setIsMenuOpen(false)}>How It Works</a>
+                  <Link to="/" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Home</Link>
+                  <Link to="/events" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Events</Link>
+                  <a href="#how-it-works" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>How It Works</a>
                   <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
-                    <Button className="bg-primary hover:bg-green-dark text-primary-foreground w-full mt-2">Sign In</Button>
+                    <Button className="bg-accent hover:bg-accent/90 text-accent-foreground w-full mt-2">Sign up / in</Button>
                   </Link>
                 </>
               )}
