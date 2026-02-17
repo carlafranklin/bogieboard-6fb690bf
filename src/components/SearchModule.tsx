@@ -36,18 +36,20 @@ export interface SearchParams {
 
 const categories = [
   { value: 'all', label: 'All Categories' },
-  { value: 'live-music', label: 'Live Music' },
-  { value: 'festivals', label: 'Festivals' },
-  { value: 'business', label: 'Business' },
-  { value: 'bar-fun', label: 'Bar Fun' },
-  { value: 'shopping', label: 'Shopping' },
-  { value: 'family-kids', label: 'Family & Kids' },
-  { value: 'movies', label: 'Movies' },
-  { value: 'religious-spiritual', label: 'Religious & Spiritual' },
-  { value: 'sports-games', label: 'Sports & Games' },
-  { value: 'lecture-series', label: 'Lecture Series' },
-  { value: 'political-events', label: 'Political Events' },
-  { value: 'arts-theater', label: 'Arts & Theater' },
+  ...[
+    { value: 'arts-theater', label: 'Arts & Theater' },
+    { value: 'bar-fun', label: 'Bar Fun' },
+    { value: 'business', label: 'Business' },
+    { value: 'family-kids', label: 'Family & Kids' },
+    { value: 'festivals', label: 'Festivals' },
+    { value: 'lecture-series', label: 'Lecture Series' },
+    { value: 'live-music', label: 'Live Music' },
+    { value: 'movies', label: 'Movies' },
+    { value: 'political-events', label: 'Political Events' },
+    { value: 'religious-spiritual', label: 'Religious & Spiritual' },
+    { value: 'shopping', label: 'Shopping' },
+    { value: 'sports-games', label: 'Sports & Games' },
+  ],
 ];
 
 function formatDateLabel(dateMode: 'single' | 'range', date: Date | undefined, dateRange: DateRange | undefined): string {
