@@ -6,7 +6,7 @@ interface FooterProps {
 
 export function Footer({ isLoggedIn = false }: FooterProps) {
   return (
-    <footer className="bg-foreground text-background py-12 px-4">
+    <footer className="bg-secondary text-secondary-foreground py-12 px-4">
       <div className="container mx-auto max-w-5xl">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
