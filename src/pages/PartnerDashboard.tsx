@@ -35,6 +35,7 @@ export default function PartnerDashboard() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [newEvent, setNewEvent] = useState<Partial<PartnerEvent>>({ is_free: false, status: 'active' });
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
@@ -141,7 +142,7 @@ export default function PartnerDashboard() {
   };
 
   const handleSaveEvent = async () => {
-    if (!profile.id) { toast({ title: 'Save profile first', variant: 'destructive' }); return; }
+    if (!profile.id || !userId) { toast({ title: 'Save profile first', variant: 'destructive' }); return; }
     if (!newEvent.title?.trim() || !newEvent.event_date) {
       toast({ title: 'Title and date required', variant: 'destructive' }); return;
     }
@@ -154,6 +155,19 @@ export default function PartnerDashboard() {
     } as any;
     delete payload.id; delete payload.created_at; delete payload.updated_at;
 
+    // Upload event image if a file was selected
+    if (eventImageFile) {
+      const ext = eventImageFile.name.split('.').pop();
+      const path = `${userId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('partner-event-images').upload(path, eventImageFile, { upsert: true });
+      if (uploadErr) {
+        toast({ title: 'Image upload failed', description: getSafeErrorMessage(uploadErr), variant: 'destructive' });
+      } else {
+        const { data: urlData } = supabase.storage.from('partner-event-images').getPublicUrl(path);
+        payload.image_url = urlData.publicUrl;
+      }
+    }
+
     if (editingEventId) {
       const { error } = await supabase.from('partner_events').update(payload).eq('id', editingEventId);
       if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
@@ -162,11 +176,12 @@ export default function PartnerDashboard() {
         toast({ title: 'Event updated!' });
         setNewEvent({ is_free: false, status: 'active' });
         setEditingEventId(null);
+        setEventImageFile(null);
       }
     } else {
       const { data, error } = await supabase.from('partner_events').insert(payload).select().single();
       if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
-      else { setEvents([data, ...events]); toast({ title: 'Event created!' }); setNewEvent({ is_free: false, status: 'active' }); }
+      else { setEvents([data, ...events]); toast({ title: 'Event created!' }); setNewEvent({ is_free: false, status: 'active' }); setEventImageFile(null); }
     }
   };
 
@@ -429,8 +444,23 @@ export default function PartnerDashboard() {
                       <Label>Ticket URL</Label>
                       <Input value={newEvent.ticket_url || ''} onChange={e => setNewEvent({ ...newEvent, ticket_url: e.target.value })} placeholder="https://..." />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Image URL</Label>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Event Image</Label>
+                      <div className="flex items-center gap-4">
+                        {(newEvent.image_url || eventImageFile) && (
+                          <img
+                            src={eventImageFile ? URL.createObjectURL(eventImageFile) : newEvent.image_url || ''}
+                            alt="Preview"
+                            className="w-20 h-20 rounded-lg object-cover border border-border"
+                          />
+                        )}
+                        <label className="cursor-pointer flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                          <Upload className="w-4 h-4" />
+                          <span className="text-sm">{eventImageFile ? eventImageFile.name : 'Upload image'}</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={e => setEventImageFile(e.target.files?.[0] || null)} />
+                        </label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Or enter a URL:</p>
                       <Input value={newEvent.image_url || ''} onChange={e => setNewEvent({ ...newEvent, image_url: e.target.value })} placeholder="https://..." />
                     </div>
                   </div>
