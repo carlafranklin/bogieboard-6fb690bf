@@ -12,10 +12,10 @@ export function Footer({ isLoggedIn = false }: FooterProps) {
           {/* Brand */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-primary-foreground" />
+              <div className="w-16 h-16 bg-primary rounded-lg flex items-center justify-center">
+                <MapPin className="w-8 h-8 text-primary-foreground" />
               </div>
-              <span className="font-display text-xl font-bold">BogieBoard</span>
+              <span className="font-display text-2xl font-bold">BogieBoard</span>
             </div>
             <p className="text-accent/90 max-w-sm">
               Your local guide to events, activities, and experiences. Discover what's happening near you.
