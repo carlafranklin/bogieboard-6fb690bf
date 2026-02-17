@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Building2, Calendar, Users, Plus, Save, Trash2, LogOut, Upload, ExternalLink } from 'lucide-react';
@@ -36,6 +36,8 @@ export default function PartnerDashboard() {
   const [newEvent, setNewEvent] = useState<Partial<PartnerEvent>>({ is_free: false, status: 'active' });
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventImageFile, setEventImageFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const eventImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
@@ -446,19 +448,39 @@ export default function PartnerDashboard() {
                     </div>
                     <div className="space-y-2 sm:col-span-2">
                       <Label>Event Image</Label>
-                      <div className="flex items-center gap-4">
-                        {(newEvent.image_url || eventImageFile) && (
+                      <div
+                        className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 transition-colors cursor-pointer ${
+                          dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/50 hover:bg-muted/30'
+                        }`}
+                        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                        onDragLeave={e => { e.preventDefault(); setDragOver(false); }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          setDragOver(false);
+                          const file = e.dataTransfer.files?.[0];
+                          if (file && file.type.startsWith('image/')) setEventImageFile(file);
+                        }}
+                        onClick={() => eventImageInputRef.current?.click()}
+                      >
+                        {(newEvent.image_url || eventImageFile) ? (
                           <img
                             src={eventImageFile ? URL.createObjectURL(eventImageFile) : newEvent.image_url || ''}
                             alt="Preview"
-                            className="w-20 h-20 rounded-lg object-cover border border-border"
+                            className="w-24 h-24 rounded-lg object-cover border border-border"
                           />
+                        ) : (
+                          <Upload className="w-8 h-8 text-muted-foreground" />
                         )}
-                        <label className="cursor-pointer flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/50 transition-colors">
-                          <Upload className="w-4 h-4" />
-                          <span className="text-sm">{eventImageFile ? eventImageFile.name : 'Upload image'}</span>
-                          <input type="file" accept="image/*" className="hidden" onChange={e => setEventImageFile(e.target.files?.[0] || null)} />
-                        </label>
+                        <p className="text-sm text-muted-foreground">
+                          {eventImageFile ? eventImageFile.name : 'Drag & drop an image here, or click to browse'}
+                        </p>
+                        <input
+                          ref={eventImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => setEventImageFile(e.target.files?.[0] || null)}
+                        />
                       </div>
                       <p className="text-xs text-muted-foreground">Or enter a URL:</p>
                       <Input value={newEvent.image_url || ''} onChange={e => setNewEvent({ ...newEvent, image_url: e.target.value })} placeholder="https://..." />
