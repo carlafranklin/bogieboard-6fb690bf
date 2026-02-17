@@ -106,7 +106,7 @@ export function Header() {
             <nav className="hidden md:flex items-center gap-8">
               <Link to="/" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Home</Link>
               <Link to="/events" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Events</Link>
-              <a href="#how-it-works" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">How It Works</a>
+              <Link to="/partner-member" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Partner Member</Link>
             </nav>
           )}
 
@@ -141,14 +141,9 @@ export function Header() {
                 </Link>
               </>
             ) : (
-              <div className="flex items-center gap-3">
-                <Link to="/auth">
-                  <Button variant="ghost" className="text-accent hover:bg-accent/10 text-sm">Log in</Button>
-                </Link>
-                <Link to="/auth">
-                  <Button className="bg-accent text-accent-foreground hover:bg-accent/90 text-sm font-medium rounded-full px-5">Sign up / in</Button>
-                </Link>
-              </div>
+              <Link to="/auth">
+                <Button className="bg-accent text-accent-foreground hover:bg-accent/90 text-sm font-medium rounded-full px-5">Sign up / in</Button>
+              </Link>
             )}
           </div>
 
@@ -212,7 +207,7 @@ export function Header() {
                 <>
                   <Link to="/" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Home</Link>
                   <Link to="/events" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Events</Link>
-                  <a href="#how-it-works" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>How It Works</a>
+                  <Link to="/partner-member" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Partner Member</Link>
                   <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground w-full mt-2">Sign up / in</Button>
                   </Link>
