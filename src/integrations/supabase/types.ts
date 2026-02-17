@@ -549,6 +549,228 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_employees: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          partner_profile_id: string
+          phone: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          partner_profile_id: string
+          phone?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          partner_profile_id?: string
+          phone?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_employees_partner_profile_id_fkey"
+            columns: ["partner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "partner_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_events: {
+        Row: {
+          age_restriction: number | null
+          category_id: string | null
+          city: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          end_time: string | null
+          event_date: string
+          event_time: string | null
+          id: string
+          image_url: string | null
+          is_free: boolean | null
+          partner_profile_id: string
+          price: number | null
+          state: string | null
+          status: string
+          subcategory_id: string | null
+          ticket_url: string | null
+          title: string
+          updated_at: string
+          venue_address: string | null
+          venue_name: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          age_restriction?: number | null
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          end_time?: string | null
+          event_date: string
+          event_time?: string | null
+          id?: string
+          image_url?: string | null
+          is_free?: boolean | null
+          partner_profile_id: string
+          price?: number | null
+          state?: string | null
+          status?: string
+          subcategory_id?: string | null
+          ticket_url?: string | null
+          title: string
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          age_restriction?: number | null
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          end_time?: string | null
+          event_date?: string
+          event_time?: string | null
+          id?: string
+          image_url?: string | null
+          is_free?: boolean | null
+          partner_profile_id?: string
+          price?: number | null
+          state?: string | null
+          status?: string
+          subcategory_id?: string | null
+          ticket_url?: string | null
+          title?: string
+          updated_at?: string
+          venue_address?: string | null
+          venue_name?: string | null
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_events_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_events_partner_profile_id_fkey"
+            columns: ["partner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "partner_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_events_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_profiles: {
+        Row: {
+          address: string | null
+          business_name: string
+          category_id: string | null
+          city: string | null
+          created_at: string
+          description: string | null
+          id: string
+          logo_url: string | null
+          phone: string | null
+          slug: string
+          social_facebook: string | null
+          social_instagram: string | null
+          social_linkedin: string | null
+          social_twitter: string | null
+          state: string | null
+          subcategory_id: string | null
+          updated_at: string
+          user_id: string
+          website: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          business_name: string
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          slug: string
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_twitter?: string | null
+          state?: string | null
+          subcategory_id?: string | null
+          updated_at?: string
+          user_id: string
+          website?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          business_name?: string
+          category_id?: string | null
+          city?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          slug?: string
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_twitter?: string | null
+          state?: string | null
+          subcategory_id?: string | null
+          updated_at?: string
+          user_id?: string
+          website?: string | null
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_profiles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_profiles_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -1053,7 +1275,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "general" | "business" | "admin"
+      app_role: "general" | "business" | "admin" | "partner"
       event_status: "active" | "cancelled" | "postponed" | "expired"
       feed_type: "rss" | "ical" | "auto" | "html"
       gender_type: "male" | "female" | "nonbinary" | "other"
@@ -1189,7 +1411,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["general", "business", "admin"],
+      app_role: ["general", "business", "admin", "partner"],
       event_status: ["active", "cancelled", "postponed", "expired"],
       feed_type: ["rss", "ical", "auto", "html"],
       gender_type: ["male", "female", "nonbinary", "other"],
