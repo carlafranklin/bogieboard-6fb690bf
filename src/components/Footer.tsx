@@ -37,9 +37,9 @@ export function Footer({ isLoggedIn = false }: FooterProps) {
           <div>
             <h4 className="font-semibold mb-4">Legal</h4>
             <ul className="space-y-2 text-accent/90">
-              <li><a href="#" className="hover:text-accent transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Terms of Service</a></li>
-              <li><a href="#" className="hover:text-accent transition-colors">Cookies</a></li>
+              <li><a href="/privacy-policy" className="hover:text-accent transition-colors">Privacy Policy</a></li>
+              <li><a href="/terms-of-service" className="hover:text-accent transition-colors">Terms of Service</a></li>
+              <li><a href="/cookie-policy" className="hover:text-accent transition-colors">Cookie Policy</a></li>
             </ul>
           </div>
         </div>
