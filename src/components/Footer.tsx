@@ -17,7 +17,7 @@ export function Footer({ isLoggedIn = false }: FooterProps) {
               </div>
               <span className="font-display text-2xl font-bold">BogieBoard</span>
             </div>
-            <p className="text-accent/90 max-w-sm">
+            <p className="text-white/90 max-w-sm">
               Your local guide to events, activities, and experiences. Discover what's happening near you.
             </p>
           </div>
@@ -26,25 +26,25 @@ export function Footer({ isLoggedIn = false }: FooterProps) {
           {!isLoggedIn && (
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-accent/90">
-                <li><a href="#" className="hover:text-accent transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-accent transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-accent transition-colors">Contact</a></li>
+              <ul className="space-y-2 text-white/90">
+                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
               </ul>
             </div>
           )}
 
           <div>
             <h4 className="font-semibold mb-4">Legal</h4>
-            <ul className="space-y-2 text-accent/90">
-              <li><a href="/privacy-policy" className="hover:text-accent transition-colors">Privacy Policy</a></li>
-              <li><a href="/terms-of-service" className="hover:text-accent transition-colors">Terms of Service</a></li>
-              <li><a href="/cookie-policy" className="hover:text-accent transition-colors">Cookie Policy</a></li>
+            <ul className="space-y-2 text-white/90">
+              <li><a href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</a></li>
+              <li><a href="/terms-of-service" className="hover:text-white transition-colors">Terms of Service</a></li>
+              <li><a href="/cookie-policy" className="hover:text-white transition-colors">Cookie Policy</a></li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-accent/20 pt-8 text-center text-accent/70 text-sm">
+        <div className="border-t border-white/20 pt-8 text-center text-white/70 text-sm">
           © {new Date().getFullYear()} BogieBoard. All rights reserved.
         </div>
       </div>

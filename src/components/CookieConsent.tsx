@@ -27,7 +27,7 @@ export function CookieConsent() {
           className="fixed bottom-0 left-0 right-0 z-[60] p-4"
         >
           <div className="container mx-auto max-w-3xl bg-secondary border border-border rounded-xl p-4 shadow-lg flex flex-col sm:flex-row items-center gap-4">
-            <p className="text-sm text-foreground/80 flex-1">
+            <p className="text-sm text-white/90 flex-1">
               We use cookies to improve your experience.{' '}
               <Link to="/cookie-policy" className="text-primary hover:underline font-medium">
                 Learn more

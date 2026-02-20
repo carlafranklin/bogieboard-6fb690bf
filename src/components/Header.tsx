@@ -104,9 +104,9 @@ export function Header() {
           {/* Nav links for non-logged-in */}
           {!isLoggedIn && (
             <nav className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Home</Link>
-              <Link to="/events" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Events</Link>
-              <Link to="/partner-member" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors">Partner Member</Link>
+              <Link to="/" className="text-sm font-medium text-white hover:text-white/80 transition-colors">Home</Link>
+              <Link to="/events" className="text-sm font-medium text-white hover:text-white/80 transition-colors">Events</Link>
+              <Link to="/partner-member" className="text-sm font-medium text-white hover:text-white/80 transition-colors">Partner Member</Link>
             </nav>
           )}
 
@@ -114,7 +114,7 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {isLoggedIn ? (
               <>
-                <Link to="/events" className="text-sm font-medium text-accent hover:text-accent/80 transition-colors mr-2">
+                <Link to="/events" className="text-sm font-medium text-white hover:text-white/80 transition-colors mr-2">
                   Events
                 </Link>
                 {isAdmin && (
@@ -148,7 +148,7 @@ export function Header() {
           </div>
 
           <button className="md:hidden p-2" onClick={() => setIsMenuOpen(!isMenuOpen)} aria-label="Toggle menu">
-            {isMenuOpen ? <X className="w-6 h-6 text-foreground" /> : <Menu className="w-6 h-6 text-foreground" />}
+            {isMenuOpen ? <X className="w-6 h-6 text-white" /> : <Menu className="w-6 h-6 text-white" />}
           </button>
         </div>
 
@@ -182,7 +182,7 @@ export function Header() {
                       <Search className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  <Link to="/events" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Events</Link>
+                  <Link to="/events" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Events</Link>
                   {isAdmin && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
@@ -205,9 +205,9 @@ export function Header() {
                 </>
               ) : (
                 <>
-                  <Link to="/" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Home</Link>
-                  <Link to="/events" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Events</Link>
-                  <Link to="/partner-member" className="text-sm font-medium text-accent" onClick={() => setIsMenuOpen(false)}>Partner Member</Link>
+                  <Link to="/" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Home</Link>
+                  <Link to="/events" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Events</Link>
+                  <Link to="/partner-member" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Partner Member</Link>
                   <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground w-full mt-2">Sign up / in</Button>
                   </Link>
