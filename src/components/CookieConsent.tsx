@@ -16,6 +16,11 @@ export function CookieConsent() {
     setVisible(false);
   };
 
+  const decline = () => {
+    localStorage.setItem('cookie-consent', 'essential-only');
+    setVisible(false);
+  };
+
   return (
     <AnimatePresence>
       {visible && (
@@ -33,9 +38,14 @@ export function CookieConsent() {
                 Learn more
               </Link>
             </p>
-            <Button size="sm" onClick={accept} className="shrink-0">
-              Accept
-            </Button>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" variant="outline" onClick={decline} className="border-white/30 text-white hover:bg-white/10 hover:text-white">
+                Decline
+              </Button>
+              <Button size="sm" onClick={accept}>
+                Accept
+              </Button>
+            </div>
           </div>
         </motion.div>
       )}
