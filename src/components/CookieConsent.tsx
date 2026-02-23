@@ -39,7 +39,7 @@ export function CookieConsent() {
               </Link>
             </p>
             <div className="flex gap-2 shrink-0">
-              <Button size="sm" variant="outline" onClick={decline} className="border-white/30 text-white hover:bg-white/10 hover:text-white">
+              <Button size="sm" variant="outline" onClick={decline} className="border-white/30 text-destructive hover:bg-white/10 hover:text-destructive">
                 Decline
               </Button>
               <Button size="sm" onClick={accept}>
