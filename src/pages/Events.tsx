@@ -1,19 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, Tag } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, Tag, ChevronRight } from 'lucide-react';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SearchModule, SearchParams } from '@/components/SearchModule';
 import { SearchFilters, FilterState } from '@/components/SearchFilters';
+import { SearchContextBar } from '@/components/SearchContextBar';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SaveEventButton } from '@/components/SaveEventButton';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
 import { metroAreas } from '@/data/metroAreas';
+import { categoryLabels, categoryIcons, categoryColors } from '@/data/mockEvents';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
+import { icons } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CanonicalEvent {
   event_id: string;
@@ -64,15 +68,39 @@ const categoryFallbackImages: Record<string, string> = {
 
 const defaultFallbackImage = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&h=300&fit=crop';
 
-function getEventImage(event: CanonicalEvent): string | null {
+// Category display order (popularity-based)
+const categoryDisplayOrder = [
+  'family-kids',
+  'live-music',
+  'festivals',
+  'arts-theater',
+  'sports-games',
+  'bar-fun',
+  'shopping',
+  'business',
+  'movies',
+  'lecture-series',
+  'religious-spiritual',
+  'political-events',
+];
+
+const INITIAL_VISIBLE_COUNT = 4;
+
+function getEventImage(event: CanonicalEvent): string {
   if (event.image_url) return event.image_url;
-  // Use category-based fallback
   const cats = event.category_names ?? [];
   for (const cat of cats) {
     const slug = cat.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     if (categoryFallbackImages[slug]) return categoryFallbackImages[slug];
   }
   return defaultFallbackImage;
+}
+
+function CategoryIcon({ slug }: { slug: string }) {
+  const iconName = categoryIcons[slug];
+  const LucideIcon = iconName ? (icons as Record<string, any>)[iconName] : null;
+  if (!LucideIcon) return null;
+  return <LucideIcon className="w-5 h-5" />;
 }
 
 export default function EventsPage() {
@@ -83,6 +111,10 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const { isSaved, toggleSave, loading: saveLoading } = useSavedEvents(userId);
+  const [showSearch, setShowSearch] = useState(true);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const [searchQuery, setSearchQuery] = useState({
     location: searchParams.get('location') || '',
     category: searchParams.get('category') || 'all',
@@ -134,7 +166,7 @@ export default function EventsPage() {
       p_category_slug: categorySlug,
       p_date_from: dateFrom,
       p_date_to: dateTo,
-      p_limit: 100,
+      p_limit: 200,
     });
 
     if (data) {
@@ -155,6 +187,7 @@ export default function EventsPage() {
       dateRange: params.dateRange,
       dateMode: params.dateMode,
     });
+    setShowSearch(false);
   };
 
   useEffect(() => {
@@ -173,18 +206,55 @@ export default function EventsPage() {
     });
   }, [events, filters]);
 
-  const groupedEvents = useMemo(() => {
-    const sorted = [...filteredEvents].sort(
-      (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-    );
+  // Group events by category
+  const categoryGroupedEvents = useMemo(() => {
     const groups: Record<string, CanonicalEvent[]> = {};
-    sorted.forEach((event) => {
-      const dateKey = format(parseISO(event.start_time), 'yyyy-MM-dd');
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(event);
+
+    filteredEvents.forEach((event) => {
+      const cats = event.category_names ?? ['Uncategorized'];
+      // Place event in its first/primary category
+      const primaryCat = cats[0] || 'Uncategorized';
+      const slug = primaryCat.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      if (!groups[slug]) groups[slug] = [];
+      groups[slug].push(event);
     });
-    return groups;
+
+    // Sort events within each category by date
+    Object.values(groups).forEach((arr) => {
+      arr.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+    });
+
+    // Sort categories by display order
+    const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
+      const aIdx = categoryDisplayOrder.indexOf(a);
+      const bIdx = categoryDisplayOrder.indexOf(b);
+      return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+    });
+
+    return sortedEntries;
   }, [filteredEvents]);
+
+  const toggleCategoryExpand = (slug: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  };
+
+  const handleEditSearch = () => {
+    setShowSearch(true);
+    setTimeout(() => {
+      searchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  };
+
+  const handleNewSearch = () => {
+    setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' });
+    setFilters(defaultFilters);
+    setShowSearch(true);
+  };
 
   const locationLabel = searchQuery.location && searchQuery.location !== 'all'
     ? metroAreas.find((m) => m.value === searchQuery.location)?.label
@@ -207,7 +277,7 @@ export default function EventsPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
+            className="mb-6"
           >
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-2">
               Discover Events
@@ -219,10 +289,47 @@ export default function EventsPage() {
             </p>
           </motion.div>
 
-          <div className="mb-6">
-            <SearchModule onSearch={handleSearch} compact />
-          </div>
+          {/* Search Module - Collapsible */}
+          <AnimatePresence>
+            {showSearch && (
+              <motion.div
+                ref={searchRef}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 overflow-hidden"
+              >
+                <SearchModule onSearch={handleSearch} compact />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          {/* Search Context Bar - visible when results are showing */}
+          {!loading && filteredEvents.length > 0 && (
+            <div className="mb-4">
+              <SearchContextBar
+                location={searchQuery.location}
+                category={searchQuery.category}
+                date={searchQuery.date}
+                dateRange={searchQuery.dateRange}
+                dateMode={searchQuery.dateMode}
+                priceFilter={filters.priceRange}
+                activeCategories={filters.categories}
+                resultCount={filteredEvents.length}
+                onEditSearch={handleEditSearch}
+                onNewSearch={handleNewSearch}
+                onRemoveLocation={() => setSearchQuery((q) => ({ ...q, location: '' }))}
+                onRemoveCategory={() => setSearchQuery((q) => ({ ...q, category: 'all' }))}
+                onRemoveDate={() => setSearchQuery((q) => ({ ...q, date: undefined, dateRange: undefined }))}
+                onRemovePrice={() => setFilters((f) => ({ ...f, priceRange: 'all' }))}
+                onRemoveActiveCategory={(cat) =>
+                  setFilters((f) => ({ ...f, categories: f.categories.filter((c) => c !== cat) }))
+                }
+              />
+            </div>
+          )}
+
+          {/* Filters */}
           <div className="mb-8">
             <SearchFilters
               filters={filters}
@@ -231,32 +338,68 @@ export default function EventsPage() {
             />
           </div>
 
+          {/* Results */}
           {loading ? (
             <div className="text-center py-16">
+              <div className="inline-flex items-center justify-center w-12 h-12 bg-muted rounded-full mb-4 animate-pulse">
+                <Calendar className="w-6 h-6 text-muted-foreground" />
+              </div>
               <p className="text-muted-foreground">Loading events...</p>
             </div>
-          ) : filteredEvents.length > 0 ? (
-            <>
-              <p className="text-sm text-muted-foreground mb-6">
-                Showing {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
-                {locationLabel ? ` in ${locationLabel}` : ''}
-              </p>
+          ) : categoryGroupedEvents.length > 0 ? (
+            <div className="space-y-10">
+              {categoryGroupedEvents.map(([catSlug, catEvents]) => {
+                const isExpanded = expandedCategories.has(catSlug);
+                const visibleEvents = isExpanded ? catEvents : catEvents.slice(0, INITIAL_VISIBLE_COUNT);
+                const hasMore = catEvents.length > INITIAL_VISIBLE_COUNT;
+                const catLabel = categoryLabels[catSlug] || catSlug;
+                const colorClass = categoryColors[catSlug] || 'bg-muted text-muted-foreground';
 
-              <div className="space-y-8">
-                {Object.entries(groupedEvents).map(([dateStr, dayEvents]) => (
-                  <div key={dateStr}>
-                    <h2 className="font-display text-lg font-semibold text-foreground mb-4 border-b border-border pb-2">
-                      {format(parseISO(dateStr), 'EEEE, MMMM d, yyyy')}
-                    </h2>
+                return (
+                  <motion.section
+                    key={catSlug}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {/* Category Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={cn('inline-flex items-center justify-center w-9 h-9 rounded-lg', colorClass)}>
+                          <CategoryIcon slug={catSlug} />
+                        </div>
+                        <div>
+                          <h2 className="font-display text-xl font-bold text-foreground">
+                            {catLabel}
+                          </h2>
+                          <p className="text-xs text-muted-foreground">
+                            {catEvents.length} event{catEvents.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {hasMore && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleCategoryExpand(catSlug)}
+                          className="text-primary hover:text-primary gap-1"
+                        >
+                          {isExpanded ? 'Show less' : `See all ${catEvents.length}`}
+                          <ChevronRight className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')} />
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Event Cards */}
                     <div className="space-y-3">
-                      {dayEvents.map((event, index) => {
+                      {visibleEvents.map((event, index) => {
                         const eventImage = getEventImage(event);
                         return (
                           <motion.div
                             key={event.event_id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.05 }}
+                            transition={{ duration: 0.3, delay: index * 0.04 }}
                             className="group bg-card rounded-xl overflow-hidden card-hover cursor-pointer border border-border"
                             onClick={() => setSelectedEvent(event)}
                           >
@@ -275,18 +418,12 @@ export default function EventsPage() {
                                     FREE
                                   </div>
                                 )}
-                                {eventImage ? (
-                                  <img
-                                    src={eventImage}
-                                    alt={event.title}
-                                    className="w-full h-full min-h-[120px] object-cover"
-                                    loading="lazy"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full min-h-[120px] bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                                    <span className="text-3xl opacity-40">🎉</span>
-                                  </div>
-                                )}
+                                <img
+                                  src={eventImage}
+                                  alt={event.title}
+                                  className="w-full h-full min-h-[120px] object-cover"
+                                  loading="lazy"
+                                />
                               </div>
 
                               {/* Content */}
@@ -315,6 +452,10 @@ export default function EventsPage() {
 
                                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
                                   <span className="inline-flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-primary" />
+                                    {format(parseISO(event.start_time), 'EEE, MMM d')}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5">
                                     <Clock className="w-3.5 h-3.5 text-primary" />
                                     {event.all_day
                                       ? 'All Day'
@@ -324,7 +465,6 @@ export default function EventsPage() {
                                     <span className="inline-flex items-center gap-1.5">
                                       <MapPin className="w-3.5 h-3.5 text-primary" />
                                       {event.venue_name}
-                                      {event.venue_address ? `, ${event.venue_address}` : ''}
                                       {event.venue_city ? `, ${event.venue_city}` : ''}
                                     </span>
                                   )}
@@ -361,10 +501,24 @@ export default function EventsPage() {
                         );
                       })}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </>
+
+                    {/* See All link at bottom */}
+                    {hasMore && !isExpanded && (
+                      <div className="mt-3 text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleCategoryExpand(catSlug)}
+                          className="text-primary border-primary/30 hover:bg-primary/5"
+                        >
+                          View all {catEvents.length} {catLabel} events
+                        </Button>
+                      </div>
+                    )}
+                  </motion.section>
+                );
+              })}
+            </div>
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
@@ -378,17 +532,16 @@ export default function EventsPage() {
                 No events found
               </h3>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                We couldn't find any events matching your criteria. Try adjusting your filters or search location.
+                We couldn't find any events matching your search. Try broadening your filters or searching a different area.
               </p>
-              <Button
-                onClick={() => {
-                  setFilters(defaultFilters);
-                  setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' });
-                }}
-                variant="outline"
-              >
-                Clear all filters
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button onClick={handleEditSearch} variant="outline" className="gap-2">
+                  Edit Search
+                </Button>
+                <Button onClick={handleNewSearch} className="gap-2">
+                  Start New Search
+                </Button>
+              </div>
             </motion.div>
           )}
         </div>
