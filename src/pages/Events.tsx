@@ -146,45 +146,54 @@ export default function EventsPage() {
   }, []);
 
   const fetchEvents = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const metroSlug = searchQuery.location && searchQuery.location !== 'all'
-      ? searchQuery.location
-      : undefined;
+      const metroSlug = searchQuery.location && searchQuery.location !== 'all'
+        ? searchQuery.location
+        : undefined;
 
-    const categorySlug = searchQuery.category !== 'all'
-      ? searchQuery.category
-      : undefined;
+      const categorySlug = searchQuery.category !== 'all'
+        ? searchQuery.category
+        : undefined;
 
-    let dateFrom = new Date().toISOString();
-    let dateTo: string | undefined;
+      let dateFrom = new Date().toISOString();
+      let dateTo: string | undefined;
 
-    if (searchQuery.dateMode === 'single' && searchQuery.date) {
-      dateFrom = searchQuery.date.toISOString();
-      const endOfDay = new Date(searchQuery.date);
-      endOfDay.setHours(23, 59, 59, 999);
-      dateTo = endOfDay.toISOString();
-    } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
-      dateFrom = searchQuery.dateRange.from.toISOString();
-      if (searchQuery.dateRange.to) {
-        const endOfDay = new Date(searchQuery.dateRange.to);
+      if (searchQuery.dateMode === 'single' && searchQuery.date) {
+        dateFrom = searchQuery.date.toISOString();
+        const endOfDay = new Date(searchQuery.date);
         endOfDay.setHours(23, 59, 59, 999);
         dateTo = endOfDay.toISOString();
+      } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
+        dateFrom = searchQuery.dateRange.from.toISOString();
+        if (searchQuery.dateRange.to) {
+          const endOfDay = new Date(searchQuery.dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          dateTo = endOfDay.toISOString();
+        }
       }
-    }
 
-    const { data } = await supabase.rpc('search_events', {
-      p_metro_slug: metroSlug,
-      p_category_slug: categorySlug,
-      p_date_from: dateFrom,
-      p_date_to: dateTo,
-      p_limit: 200,
-    });
+      const { data, error } = await supabase.rpc('search_events', {
+        p_metro_slug: metroSlug,
+        p_category_slug: categorySlug,
+        p_date_from: dateFrom,
+        p_date_to: dateTo,
+        p_limit: 200,
+      });
 
-    if (data) {
-      setEvents(data as CanonicalEvent[]);
+      if (error) {
+        console.error('Error fetching events:', error);
+      }
+
+      if (data) {
+        setEvents(data as CanonicalEvent[]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
