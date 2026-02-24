@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, Tag, Filter, ChevronDown, ChevronLeft, ChevronRight, X, Search } from 'lucide-react';
+import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, Tag, Filter, ChevronDown, ChevronLeft, ChevronRight, X, Search, Building2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -58,6 +58,8 @@ interface CanonicalEvent {
   category_names: string[] | null;
   source_url: string | null;
   discount_info: string | null;
+  // Partner event fields
+  posted_by?: string | null;
 }
 
 const categoryChips = [
@@ -174,27 +176,78 @@ export default function EventsPage() {
         }
       }
 
-      const { data, error } = await supabase.rpc('search_events', {
-        p_metro_slug: metroSlug,
-        p_category_slug: categorySlug,
-        p_date_from: dateFrom,
-        p_date_to: dateTo,
-        p_limit: 200,
-      });
+      // Fetch canonical events and approved partner events in parallel
+      const [canonicalRes, partnerRes] = await Promise.all([
+        supabase.rpc('search_events', {
+          p_metro_slug: metroSlug,
+          p_category_slug: categorySlug,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
+          p_limit: 200,
+        }),
+        supabase
+          .from('partner_events')
+          .select('*, partner_profiles!inner(business_name), categories(name)')
+          .eq('status', 'approved')
+          .gte('event_date', dateFrom.split('T')[0])
+          .order('event_date'),
+      ]);
 
-      if (error) {
-        console.error('Error fetching events:', error);
+      if (canonicalRes.error) {
+        console.error('Error fetching canonical events:', canonicalRes.error);
       }
 
-      if (data) {
-        setEvents(data as CanonicalEvent[]);
-      }
+      // Map partner events to the same shape as canonical events
+      const partnerEvents: CanonicalEvent[] = (partnerRes.data || []).map((pe: any) => ({
+        event_id: pe.id,
+        title: pe.title,
+        description_short: pe.description,
+        start_time: `${pe.event_date}T${pe.event_time ? convertTimeToISO(pe.event_time) : '00:00:00'}`,
+        end_time: pe.end_date ? `${pe.end_date}T${pe.end_time ? convertTimeToISO(pe.end_time) : '23:59:59'}` : null,
+        all_day: !pe.event_time,
+        is_free: pe.is_free || false,
+        price_min: pe.price,
+        price_max: pe.price,
+        ticket_url: pe.ticket_url,
+        image_url: pe.image_url,
+        age_restriction: pe.age_restriction,
+        status: 'active',
+        venue_name: pe.venue_name,
+        venue_address: pe.venue_address,
+        venue_city: pe.city,
+        venue_state: pe.state,
+        venue_zip: pe.zip_code,
+        metro_name: null,
+        category_names: pe.categories?.name ? [pe.categories.name] : [],
+        source_url: null,
+        discount_info: null,
+        posted_by: pe.partner_profiles?.business_name || null,
+      }));
+
+      const allEvents = [...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents];
+      setEvents(allEvents);
     } catch (err) {
       console.error('Failed to fetch events:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  // Helper to convert time strings like "7:00 PM" to "19:00:00"
+  function convertTimeToISO(timeStr: string): string {
+    try {
+      const match = timeStr.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
+      if (!match) return '00:00:00';
+      let hours = parseInt(match[1]);
+      const minutes = match[2] ? parseInt(match[2]) : 0;
+      const ampm = match[3]?.toUpperCase();
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+    } catch {
+      return '00:00:00';
+    }
+  }
 
   useEffect(() => {
     fetchEvents();
@@ -529,11 +582,21 @@ export default function EventsPage() {
 
                     {/* Content */}
                     <div className="p-3.5 space-y-2">
-                      {/* Category chip */}
-                      {event.category_names?.[0] && (
-                        <span className="inline-block text-[11px] font-medium text-muted-foreground">
-                          {event.category_names[0]}
-                        </span>
+                      {/* Category chip + Posted by */}
+                      {(event.category_names?.[0] || event.posted_by) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {event.category_names?.[0] && (
+                            <span className="inline-block text-[11px] font-medium text-muted-foreground">
+                              {event.category_names[0]}
+                            </span>
+                          )}
+                          {event.posted_by && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                              <Building2 className="w-2.5 h-2.5" />
+                              {event.posted_by}
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       <h3 className="font-display text-[15px] font-semibold text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">

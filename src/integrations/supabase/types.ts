@@ -590,6 +590,8 @@ export type Database = {
       partner_events: {
         Row: {
           age_restriction: number | null
+          boost_score: number
+          campaign_id: string | null
           category_id: string | null
           city: string | null
           created_at: string
@@ -601,8 +603,13 @@ export type Database = {
           id: string
           image_url: string | null
           is_free: boolean | null
+          is_sponsored: boolean
+          moderation_notes: string | null
           partner_profile_id: string
           price: number | null
+          sponsored_end: string | null
+          sponsored_start: string | null
+          sponsored_type: string | null
           state: string | null
           status: string
           subcategory_id: string | null
@@ -615,6 +622,8 @@ export type Database = {
         }
         Insert: {
           age_restriction?: number | null
+          boost_score?: number
+          campaign_id?: string | null
           category_id?: string | null
           city?: string | null
           created_at?: string
@@ -626,8 +635,13 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_free?: boolean | null
+          is_sponsored?: boolean
+          moderation_notes?: string | null
           partner_profile_id: string
           price?: number | null
+          sponsored_end?: string | null
+          sponsored_start?: string | null
+          sponsored_type?: string | null
           state?: string | null
           status?: string
           subcategory_id?: string | null
@@ -640,6 +654,8 @@ export type Database = {
         }
         Update: {
           age_restriction?: number | null
+          boost_score?: number
+          campaign_id?: string | null
           category_id?: string | null
           city?: string | null
           created_at?: string
@@ -651,8 +667,13 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_free?: boolean | null
+          is_sponsored?: boolean
+          moderation_notes?: string | null
           partner_profile_id?: string
           price?: number | null
+          sponsored_end?: string | null
+          sponsored_start?: string | null
+          sponsored_type?: string | null
           state?: string | null
           status?: string
           subcategory_id?: string | null
@@ -693,6 +714,7 @@ export type Database = {
           business_name: string
           category_id: string | null
           city: string | null
+          cover_url: string | null
           created_at: string
           description: string | null
           id: string
@@ -707,6 +729,7 @@ export type Database = {
           subcategory_id: string | null
           updated_at: string
           user_id: string
+          verification_status: string
           website: string | null
           zip_code: string | null
         }
@@ -715,6 +738,7 @@ export type Database = {
           business_name: string
           category_id?: string | null
           city?: string | null
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -729,6 +753,7 @@ export type Database = {
           subcategory_id?: string | null
           updated_at?: string
           user_id: string
+          verification_status?: string
           website?: string | null
           zip_code?: string | null
         }
@@ -737,6 +762,7 @@ export type Database = {
           business_name?: string
           category_id?: string | null
           city?: string | null
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -751,6 +777,7 @@ export type Database = {
           subcategory_id?: string | null
           updated_at?: string
           user_id?: string
+          verification_status?: string
           website?: string | null
           zip_code?: string | null
         }

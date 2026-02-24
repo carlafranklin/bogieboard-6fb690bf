@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Building2, Calendar, Users, Plus, Save, Trash2, LogOut, Upload, ExternalLink } from 'lucide-react';
+import { Building2, Calendar, Users, Plus, Save, Trash2, LogOut, Upload, ExternalLink, FileText, Clock, CheckCircle2, XCircle, Send, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +22,13 @@ type PartnerEvent = Tables<'partner_events'>;
 type Category = Tables<'categories'>;
 type Subcategory = Tables<'subcategories'>;
 
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  draft: { label: 'Draft', color: 'bg-muted text-muted-foreground', icon: FileText },
+  pending: { label: 'Pending Review', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
+  approved: { label: 'Live', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
+  rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
+};
+
 export default function PartnerDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -33,16 +41,18 @@ export default function PartnerDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [newEvent, setNewEvent] = useState<Partial<PartnerEvent>>({ is_free: false, status: 'active' });
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [newEvent, setNewEvent] = useState<Partial<PartnerEvent>>({ is_free: false, status: 'draft' });
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventImageFile, setEventImageFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [eventFilter, setEventFilter] = useState<string>('all');
   const eventImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
       if (!session) { navigate('/auth'); return; }
-      // Check partner role
       const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
       const isPartner = roles?.some(r => r.role === 'partner') || false;
       if (!isPartner) { navigate('/'); toast({ title: 'Access denied', description: 'Partner account required.', variant: 'destructive' }); return; }
@@ -97,6 +107,7 @@ export default function PartnerDashboard() {
     const payload = { ...profile, slug, user_id: userId } as any;
     delete payload.id; delete payload.created_at; delete payload.updated_at;
 
+    // Upload logo
     let logoUrl = profile.logo_url;
     if (logoFile) {
       const ext = logoFile.name.split('.').pop();
@@ -108,6 +119,19 @@ export default function PartnerDashboard() {
         const { data: urlData } = supabase.storage.from('partner-logos').getPublicUrl(path);
         logoUrl = urlData.publicUrl;
         payload.logo_url = logoUrl;
+      }
+    }
+
+    // Upload cover image
+    if (coverFile) {
+      const ext = coverFile.name.split('.').pop();
+      const path = `${userId}/cover.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('partner-logos').upload(path, coverFile, { upsert: true });
+      if (uploadErr) {
+        toast({ title: 'Cover upload failed', description: getSafeErrorMessage(uploadErr), variant: 'destructive' });
+      } else {
+        const { data: urlData } = supabase.storage.from('partner-logos').getPublicUrl(path);
+        payload.cover_url = urlData.publicUrl;
       }
     }
 
@@ -143,13 +167,17 @@ export default function PartnerDashboard() {
     if (!error) setEmployees(prev => prev.filter(e => e.id !== id));
   };
 
-  const handleSaveEvent = async () => {
+  const handleSaveEvent = async (submitForReview = false) => {
     if (!profile.id || !userId) { toast({ title: 'Save profile first', variant: 'destructive' }); return; }
     if (!newEvent.title?.trim() || !newEvent.event_date) {
       toast({ title: 'Title and date required', variant: 'destructive' }); return;
     }
+
+    const status = submitForReview ? 'pending' : (newEvent.status === 'rejected' ? 'draft' : (newEvent.status || 'draft'));
+
     const payload = {
       ...newEvent,
+      status,
       partner_profile_id: profile.id,
       city: newEvent.city || profile.city,
       state: newEvent.state || profile.state,
@@ -175,21 +203,30 @@ export default function PartnerDashboard() {
       if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
       else {
         setEvents(prev => prev.map(e => e.id === editingEventId ? { ...e, ...payload } : e));
-        toast({ title: 'Event updated!' });
-        setNewEvent({ is_free: false, status: 'active' });
-        setEditingEventId(null);
-        setEventImageFile(null);
+        toast({ title: submitForReview ? 'Submitted for review!' : 'Event updated!' });
+        resetEventForm();
       }
     } else {
       const { data, error } = await supabase.from('partner_events').insert(payload).select().single();
       if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
-      else { setEvents([data, ...events]); toast({ title: 'Event created!' }); setNewEvent({ is_free: false, status: 'active' }); setEventImageFile(null); }
+      else {
+        setEvents([data, ...events]);
+        toast({ title: submitForReview ? 'Submitted for review!' : 'Draft saved!' });
+        resetEventForm();
+      }
     }
+  };
+
+  const resetEventForm = () => {
+    setNewEvent({ is_free: false, status: 'draft' });
+    setEditingEventId(null);
+    setEventImageFile(null);
   };
 
   const handleEditEvent = (evt: PartnerEvent) => {
     setNewEvent(evt);
     setEditingEventId(evt.id);
+    setActiveTab('events');
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -197,9 +234,28 @@ export default function PartnerDashboard() {
     if (!error) { setEvents(prev => prev.filter(e => e.id !== id)); toast({ title: 'Event deleted' }); }
   };
 
+  const handleDuplicateEvent = (evt: PartnerEvent) => {
+    const { id, created_at, updated_at, ...rest } = evt as any;
+    setNewEvent({ ...rest, status: 'draft', title: `${evt.title} (Copy)` });
+    setEditingEventId(null);
+    setActiveTab('events');
+    toast({ title: 'Event duplicated as draft' });
+  };
+
   const handleSignOut = async () => { await supabase.auth.signOut(); navigate('/'); };
 
   const getSubsForCategory = (catId: string | null) => catId ? subcategories.filter(s => s.category_id === catId) : [];
+
+  // Event counts by status
+  const eventCounts = {
+    draft: events.filter(e => e.status === 'draft').length,
+    pending: events.filter(e => e.status === 'pending').length,
+    approved: events.filter(e => e.status === 'approved').length,
+    rejected: events.filter(e => e.status === 'rejected').length,
+    total: events.length,
+  };
+
+  const filteredEvents = eventFilter === 'all' ? events : events.filter(e => e.status === eventFilter);
 
   if (loading) {
     return (
@@ -212,26 +268,42 @@ export default function PartnerDashboard() {
     );
   }
 
+  const StatusBadge = ({ status }: { status: string }) => {
+    const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
+    const Icon = config.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+        <Icon className="w-3 h-3" />
+        {config.label}
+      </span>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <main className="pt-24 pb-16 px-4">
-        <div className="container mx-auto max-w-4xl">
+        <div className="container mx-auto max-w-5xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            {/* Dashboard Header */}
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-secondary" />
-                </div>
+                {profile.logo_url ? (
+                  <img src={profile.logo_url} alt="" className="w-12 h-12 rounded-full object-cover border border-border" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-secondary" />
+                  </div>
+                )}
                 <div>
-                  <h1 className="font-display text-2xl font-bold text-foreground">Partner Dashboard</h1>
+                  <h1 className="font-display text-2xl font-bold text-foreground">Business Dashboard</h1>
                   <p className="text-sm text-muted-foreground">{profile.business_name || 'Set up your business profile'}</p>
                 </div>
               </div>
               <div className="flex gap-2">
                 {profile.slug && (
                   <Button variant="outline" size="sm" onClick={() => navigate(`/partners/${profile.slug}`)}>
-                    <ExternalLink className="w-4 h-4 mr-2" /> View Page
+                    <Eye className="w-4 h-4 mr-2" /> View Public Page
                   </Button>
                 )}
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
@@ -240,12 +312,100 @@ export default function PartnerDashboard() {
               </div>
             </div>
 
-            <Tabs defaultValue="profile">
-              <TabsList className="grid w-full grid-cols-3 mb-6">
-                <TabsTrigger value="profile"><Building2 className="w-4 h-4 mr-2" />Business Profile</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-4 mb-6">
+                <TabsTrigger value="overview"><Building2 className="w-4 h-4 mr-2" />Overview</TabsTrigger>
+                <TabsTrigger value="profile"><Building2 className="w-4 h-4 mr-2" />Profile</TabsTrigger>
                 <TabsTrigger value="team"><Users className="w-4 h-4 mr-2" />Team</TabsTrigger>
                 <TabsTrigger value="events"><Calendar className="w-4 h-4 mr-2" />Events</TabsTrigger>
               </TabsList>
+
+              {/* OVERVIEW TAB */}
+              <TabsContent value="overview">
+                <div className="space-y-6">
+                  {/* Profile Summary Card */}
+                  <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
+                    <div className="flex items-start gap-4">
+                      {profile.logo_url ? (
+                        <img src={profile.logo_url} alt="" className="w-16 h-16 rounded-xl object-cover border border-border" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-muted flex items-center justify-center">
+                          <Building2 className="w-8 h-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h2 className="font-display text-xl font-bold text-foreground">{profile.business_name || 'Unnamed Business'}</h2>
+                          <Badge variant="outline" className="text-xs">{(profile as any).verification_status === 'verified' ? '✓ Verified' : 'Pending Verification'}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{profile.description || 'No description yet.'}</p>
+                        {(profile.city || profile.state) && (
+                          <p className="text-sm text-muted-foreground mt-1">{[profile.city, profile.state].filter(Boolean).join(', ')}</p>
+                        )}
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setActiveTab('profile')}>
+                        Edit Profile
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Event Stats */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[
+                      { key: 'draft', label: 'Drafts', count: eventCounts.draft, icon: FileText, color: 'text-muted-foreground' },
+                      { key: 'pending', label: 'Pending Review', count: eventCounts.pending, icon: Clock, color: 'text-yellow-600' },
+                      { key: 'approved', label: 'Live', count: eventCounts.approved, icon: CheckCircle2, color: 'text-green-600' },
+                      { key: 'rejected', label: 'Rejected', count: eventCounts.rejected, icon: XCircle, color: 'text-red-600' },
+                    ].map(stat => (
+                      <button
+                        key={stat.key}
+                        onClick={() => { setEventFilter(stat.key); setActiveTab('events'); }}
+                        className="bg-card rounded-xl border border-border p-4 text-left hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                          <span className="text-xs font-medium text-muted-foreground">{stat.label}</span>
+                        </div>
+                        <p className="text-2xl font-bold text-foreground">{stat.count}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="flex gap-3">
+                    <Button onClick={() => { resetEventForm(); setActiveTab('events'); }} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                      <Plus className="w-4 h-4 mr-2" /> Create New Event
+                    </Button>
+                    <Button variant="outline" onClick={() => setActiveTab('profile')}>
+                      Edit Business Profile
+                    </Button>
+                  </div>
+
+                  {/* Recent Events */}
+                  {events.length > 0 && (
+                    <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
+                      <h3 className="font-display text-lg font-semibold mb-4">Recent Events</h3>
+                      <div className="space-y-3">
+                        {events.slice(0, 5).map(evt => (
+                          <div key={evt.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/50 border border-border">
+                            <div className="flex items-center gap-3">
+                              {evt.image_url && <img src={evt.image_url} alt="" className="w-10 h-10 rounded-lg object-cover" />}
+                              <div>
+                                <h4 className="font-semibold text-foreground text-sm">{evt.title}</h4>
+                                <p className="text-xs text-muted-foreground">{evt.event_date} {evt.event_time && `at ${evt.event_time}`}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status={evt.status} />
+                              <Button size="sm" variant="ghost" onClick={() => handleEditEvent(evt)}>Edit</Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
 
               {/* PROFILE TAB */}
               <TabsContent value="profile">
@@ -318,8 +478,9 @@ export default function PartnerDashboard() {
                       <Input value={profile.social_linkedin || ''} onChange={e => setProfile({ ...profile, social_linkedin: e.target.value })} placeholder="LinkedIn URL" />
                     </div>
 
-                    {/* Logo upload */}
-                    <div className="sm:col-span-2 space-y-2">
+                    {/* Branding */}
+                    <div className="sm:col-span-2 pt-2"><h3 className="font-display text-sm font-semibold text-muted-foreground">Branding</h3></div>
+                    <div className="space-y-2">
                       <Label>Business Logo</Label>
                       <div className="flex items-center gap-4">
                         {profile.logo_url && <img src={profile.logo_url} alt="Logo" className="w-16 h-16 rounded-lg object-cover border border-border" />}
@@ -327,6 +488,17 @@ export default function PartnerDashboard() {
                           <Upload className="w-4 h-4" />
                           <span className="text-sm">{logoFile ? logoFile.name : 'Upload logo'}</span>
                           <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files?.[0] || null)} />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cover Image (optional)</Label>
+                      <div className="flex items-center gap-4">
+                        {(profile as any).cover_url && <img src={(profile as any).cover_url} alt="Cover" className="w-24 h-14 rounded-lg object-cover border border-border" />}
+                        <label className="cursor-pointer flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                          <Upload className="w-4 h-4" />
+                          <span className="text-sm">{coverFile ? coverFile.name : 'Upload cover'}</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={e => setCoverFile(e.target.files?.[0] || null)} />
                         </label>
                       </div>
                     </div>
@@ -381,8 +553,19 @@ export default function PartnerDashboard() {
 
               {/* EVENTS TAB */}
               <TabsContent value="events">
+                {/* Event Form */}
                 <div className="bg-card rounded-2xl shadow-sm border border-border p-6 mb-6">
                   <h2 className="font-display text-lg font-semibold mb-4">{editingEventId ? 'Edit Event' : 'Create New Event'}</h2>
+
+                  {/* Show rejection reason if editing a rejected event */}
+                  {editingEventId && newEvent.status === 'rejected' && (newEvent as any).moderation_notes && (
+                    <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-400 mb-1">Rejection Reason:</p>
+                      <p className="text-sm text-red-700 dark:text-red-300">{(newEvent as any).moderation_notes}</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-2">Edit and resubmit for review.</p>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2 sm:col-span-2">
                       <Label>Title *</Label>
@@ -393,11 +576,11 @@ export default function PartnerDashboard() {
                       <Textarea value={newEvent.description || ''} onChange={e => setNewEvent({ ...newEvent, description: e.target.value })} rows={3} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Date *</Label>
+                      <Label>Start Date *</Label>
                       <Input type="date" value={newEvent.event_date || ''} onChange={e => setNewEvent({ ...newEvent, event_date: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Time</Label>
+                      <Label>Start Time</Label>
                       <Input value={newEvent.event_time || ''} onChange={e => setNewEvent({ ...newEvent, event_time: e.target.value })} placeholder="7:00 PM" />
                     </div>
                     <div className="space-y-2">
@@ -439,11 +622,22 @@ export default function PartnerDashboard() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Price ($)</Label>
-                      <Input type="number" value={newEvent.price ?? ''} onChange={e => setNewEvent({ ...newEvent, price: e.target.value ? Number(e.target.value) : null })} placeholder="0.00" />
+                      <Label>Age Guidance</Label>
+                      <Select value={String(newEvent.age_restriction ?? '')} onValueChange={v => setNewEvent({ ...newEvent, age_restriction: v ? Number(v) : null })}>
+                        <SelectTrigger><SelectValue placeholder="All Ages" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">All Ages</SelectItem>
+                          <SelectItem value="18">18+</SelectItem>
+                          <SelectItem value="21">21+</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Ticket URL</Label>
+                      <Label>Price ($)</Label>
+                      <Input type="number" value={newEvent.price ?? ''} onChange={e => setNewEvent({ ...newEvent, price: e.target.value ? Number(e.target.value) : null, is_free: !e.target.value || Number(e.target.value) === 0 })} placeholder="0.00 = Free" />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Ticket / RSVP URL</Label>
                       <Input value={newEvent.ticket_url || ''} onChange={e => setNewEvent({ ...newEvent, ticket_url: e.target.value })} placeholder="https://..." />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
@@ -486,31 +680,64 @@ export default function PartnerDashboard() {
                       <Input value={newEvent.image_url || ''} onChange={e => setNewEvent({ ...newEvent, image_url: e.target.value })} placeholder="https://..." />
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-6">
-                    <Button onClick={handleSaveEvent} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                      <Save className="w-4 h-4 mr-2" /> {editingEventId ? 'Update Event' : 'Create Event'}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-2 mt-6">
+                    <Button variant="outline" onClick={() => handleSaveEvent(false)}>
+                      <Save className="w-4 h-4 mr-2" /> {editingEventId ? 'Save Changes' : 'Save as Draft'}
+                    </Button>
+                    <Button onClick={() => handleSaveEvent(true)} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                      <Send className="w-4 h-4 mr-2" /> {editingEventId ? 'Update & Submit for Review' : 'Submit for Review'}
                     </Button>
                     {editingEventId && (
-                      <Button variant="outline" onClick={() => { setNewEvent({ is_free: false, status: 'active' }); setEditingEventId(null); }}>Cancel</Button>
+                      <Button variant="ghost" onClick={resetEventForm}>Cancel</Button>
                     )}
                   </div>
                 </div>
 
                 {/* Event List */}
                 <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
-                  <h2 className="font-display text-lg font-semibold mb-4">Your Events ({events.length})</h2>
-                  {events.length === 0 ? (
-                    <p className="text-center py-8 text-muted-foreground">No events yet. Create your first event above.</p>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="font-display text-lg font-semibold">Your Events ({filteredEvents.length})</h2>
+                    <Select value={eventFilter} onValueChange={setEventFilter}>
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All ({eventCounts.total})</SelectItem>
+                        <SelectItem value="draft">Drafts ({eventCounts.draft})</SelectItem>
+                        <SelectItem value="pending">Pending ({eventCounts.pending})</SelectItem>
+                        <SelectItem value="approved">Live ({eventCounts.approved})</SelectItem>
+                        <SelectItem value="rejected">Rejected ({eventCounts.rejected})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {filteredEvents.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground">
+                      {eventFilter === 'all' ? 'No events yet. Create your first event above.' : `No ${eventFilter} events.`}
+                    </p>
                   ) : (
                     <div className="space-y-3">
-                      {events.map(evt => (
+                      {filteredEvents.map(evt => (
                         <div key={evt.id} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border">
-                          <div>
-                            <h3 className="font-semibold text-foreground">{evt.title}</h3>
-                            <p className="text-sm text-muted-foreground">{evt.event_date} {evt.event_time && `at ${evt.event_time}`} · {evt.venue_name || evt.city}</p>
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {evt.image_url && <img src={evt.image_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold text-foreground truncate">{evt.title}</h3>
+                                <StatusBadge status={evt.status} />
+                              </div>
+                              <p className="text-sm text-muted-foreground">{evt.event_date} {evt.event_time && `at ${evt.event_time}`} · {evt.venue_name || evt.city}</p>
+                              {evt.status === 'rejected' && (evt as any).moderation_notes && (
+                                <p className="text-xs text-red-600 dark:text-red-400 mt-1">Reason: {(evt as any).moderation_notes}</p>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1 shrink-0 ml-2">
                             <Button size="sm" variant="outline" onClick={() => handleEditEvent(evt)}>Edit</Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDuplicateEvent(evt)} title="Duplicate">
+                              <Plus className="w-4 h-4" />
+                            </Button>
                             <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeleteEvent(evt.id)}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
