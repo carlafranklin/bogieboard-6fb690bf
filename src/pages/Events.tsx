@@ -1,23 +1,39 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, Tag, ChevronRight } from 'lucide-react';
-import { CategoryBadge } from '@/components/ui/CategoryBadge';
+import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, Tag, Filter, ChevronDown, ChevronLeft, ChevronRight, X, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SearchModule, SearchParams } from '@/components/SearchModule';
-import { SearchFilters, FilterState } from '@/components/SearchFilters';
-import { SearchContextBar } from '@/components/SearchContextBar';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SaveEventButton } from '@/components/SaveEventButton';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
 import { metroAreas } from '@/data/metroAreas';
-import { categoryLabels, categoryIcons, categoryColors } from '@/data/mockEvents';
+import { categoryLabels } from '@/data/mockEvents';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
-import { icons } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { DateRange } from 'react-day-picker';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface CanonicalEvent {
   event_id: string;
@@ -44,13 +60,34 @@ interface CanonicalEvent {
   discount_info: string | null;
 }
 
-const defaultFilters: FilterState = {
-  priceRange: 'all',
-  distance: 25,
-  categories: [],
+const categoryChips = [
+  { value: 'all', label: 'All' },
+  { value: 'live-music', label: 'Live Music' },
+  { value: 'festivals', label: 'Festivals' },
+  { value: 'family-kids', label: 'Family & Kids' },
+  { value: 'arts-theater', label: 'Arts & Theater' },
+  { value: 'sports-games', label: 'Sports & Games' },
+  { value: 'bar-fun', label: 'Bar Fun' },
+  { value: 'shopping', label: 'Shopping' },
+  { value: 'business', label: 'Business' },
+  { value: 'movies', label: 'Movies' },
+  { value: 'lecture-series', label: 'Lecture Series' },
+  { value: 'religious-spiritual', label: 'Religious & Spiritual' },
+  { value: 'political-events', label: 'Political Events' },
+];
+
+type SortOption = 'featured' | 'date-asc' | 'date-desc' | 'price-low' | 'price-high';
+
+const sortLabels: Record<SortOption, string> = {
+  'featured': 'Featured',
+  'date-asc': 'Date (Soonest)',
+  'date-desc': 'Date (Latest)',
+  'price-low': 'Price (Low to High)',
+  'price-high': 'Price (High to Low)',
 };
 
-// Category fallback images for events without photos
+const defaultFallbackImage = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&h=300&fit=crop';
+
 const categoryFallbackImages: Record<string, string> = {
   'live-music': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=300&fit=crop',
   'festivals': 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=400&h=300&fit=crop',
@@ -66,26 +103,6 @@ const categoryFallbackImages: Record<string, string> = {
   'arts-theater': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
 };
 
-const defaultFallbackImage = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&h=300&fit=crop';
-
-// Category display order (popularity-based)
-const categoryDisplayOrder = [
-  'family-kids',
-  'live-music',
-  'festivals',
-  'arts-theater',
-  'sports-games',
-  'bar-fun',
-  'shopping',
-  'business',
-  'movies',
-  'lecture-series',
-  'religious-spiritual',
-  'political-events',
-];
-
-const INITIAL_VISIBLE_COUNT = 4;
-
 function getEventImage(event: CanonicalEvent): string {
   if (event.image_url) return event.image_url;
   const cats = event.category_names ?? [];
@@ -96,32 +113,27 @@ function getEventImage(event: CanonicalEvent): string {
   return defaultFallbackImage;
 }
 
-function CategoryIcon({ slug }: { slug: string }) {
-  const iconName = categoryIcons[slug];
-  const LucideIcon = iconName ? (icons as Record<string, any>)[iconName] : null;
-  if (!LucideIcon) return null;
-  return <LucideIcon className="w-5 h-5" />;
-}
-
 export default function EventsPage() {
   const [searchParams] = useSearchParams();
   const [selectedEvent, setSelectedEvent] = useState<CanonicalEvent | null>(null);
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [events, setEvents] = useState<CanonicalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const { isSaved, toggleSave, loading: saveLoading } = useSavedEvents(userId);
-  const [showSearch, setShowSearch] = useState(true);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const searchRef = useRef<HTMLDivElement>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('featured');
+  const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
+  const chipsRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState({
     location: searchParams.get('location') || '',
     category: searchParams.get('category') || 'all',
     date: undefined as Date | undefined,
-    dateRange: undefined as import('react-day-picker').DateRange | undefined,
+    dateRange: undefined as DateRange | undefined,
     dateMode: 'single' as 'single' | 'range',
   });
+
+  // Active category chip (separate from search query category for quick filtering)
+  const [activeChip, setActiveChip] = useState<string>('all');
 
   // Get auth state
   useEffect(() => {
@@ -177,168 +189,289 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
-
-  const handleSearch = (params: SearchParams) => {
-    setSearchQuery({
-      location: params.location,
-      category: params.category,
-      date: params.date,
-      dateRange: params.dateRange,
-      dateMode: params.dateMode,
-    });
-    setShowSearch(false);
-  };
-
-  useEffect(() => {
-    fetchEvents();
   }, [searchQuery]);
 
-  const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
-      if (filters.priceRange === 'free' && !event.is_free) return false;
-      if (filters.priceRange === 'paid' && event.is_free) return false;
-      if (filters.categories.length > 0) {
-        const eventCats = (event.category_names ?? []).map(c => c.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-        if (!filters.categories.some(fc => eventCats.includes(fc))) return false;
-      }
-      return true;
-    });
-  }, [events, filters]);
+  // Filter and sort
+  const displayEvents = useMemo(() => {
+    let filtered = events;
 
-  // Group events by category
-  const categoryGroupedEvents = useMemo(() => {
-    const groups: Record<string, CanonicalEvent[]> = {};
+    // Category chip filter
+    if (activeChip !== 'all') {
+      filtered = filtered.filter((e) => {
+        const cats = (e.category_names ?? []).map(c => c.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+        return cats.includes(activeChip);
+      });
+    }
 
-    filteredEvents.forEach((event) => {
-      const cats = event.category_names ?? ['Uncategorized'];
-      // Place event in its first/primary category
-      const primaryCat = cats[0] || 'Uncategorized';
-      const slug = primaryCat.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      if (!groups[slug]) groups[slug] = [];
-      groups[slug].push(event);
-    });
+    // Price filter
+    if (priceFilter === 'free') filtered = filtered.filter(e => e.is_free);
+    if (priceFilter === 'paid') filtered = filtered.filter(e => !e.is_free);
 
-    // Sort events within each category by date
-    Object.values(groups).forEach((arr) => {
-      arr.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-    });
+    // Sort
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case 'date-asc':
+        sorted.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+        break;
+      case 'date-desc':
+        sorted.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+        break;
+      case 'price-low':
+        sorted.sort((a, b) => (a.price_min ?? 0) - (b.price_min ?? 0));
+        break;
+      case 'price-high':
+        sorted.sort((a, b) => (b.price_min ?? 0) - (a.price_min ?? 0));
+        break;
+      default:
+        // featured: keep original order
+        break;
+    }
 
-    // Sort categories by display order
-    const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
-      const aIdx = categoryDisplayOrder.indexOf(a);
-      const bIdx = categoryDisplayOrder.indexOf(b);
-      return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
-    });
-
-    return sortedEntries;
-  }, [filteredEvents]);
-
-  const toggleCategoryExpand = (slug: string) => {
-    setExpandedCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
-    });
-  };
-
-  const handleEditSearch = () => {
-    setShowSearch(true);
-    setTimeout(() => {
-      searchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-  };
-
-  const handleNewSearch = () => {
-    setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' });
-    setFilters(defaultFilters);
-    setShowSearch(true);
-  };
+    return sorted;
+  }, [events, activeChip, priceFilter, sortBy]);
 
   const locationLabel = searchQuery.location && searchQuery.location !== 'all'
     ? metroAreas.find((m) => m.value === searchQuery.location)?.label
     : null;
 
+  const hasDate = searchQuery.dateMode === 'single' ? !!searchQuery.date : !!searchQuery.dateRange?.from;
+
+  const dateLabel = (() => {
+    if (searchQuery.dateMode === 'single' && searchQuery.date) return format(searchQuery.date, 'MMM d, yyyy');
+    if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
+      if (searchQuery.dateRange.to) return `${format(searchQuery.dateRange.from, 'MMM d')} – ${format(searchQuery.dateRange.to, 'MMM d')}`;
+      return `${format(searchQuery.dateRange.from, 'MMM d')} – ...`;
+    }
+    return 'Select Dates';
+  })();
+
+  const scrollChips = (dir: 'left' | 'right') => {
+    if (chipsRef.current) {
+      chipsRef.current.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="pt-24 pb-16 px-4">
-        <div className="container mx-auto max-w-5xl">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-
+      <main className="pt-24 pb-16">
+        <div className="container mx-auto max-w-7xl px-4">
+          {/* Page Title */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6"
+            className="mb-5"
           >
-            <h1 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-2">
-              Discover Events
-            </h1>
-            <p className="text-muted-foreground">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-foreground">
               {locationLabel
-                ? `Showing events in the ${locationLabel}`
-                : 'Find events happening in your area'}
-            </p>
+                ? `All ${locationLabel} Events`
+                : 'All Events & Experiences'}
+            </h1>
           </motion.div>
 
-          {/* Search Module - Collapsible */}
-          <AnimatePresence>
-            {showSearch && (
-              <motion.div
-                ref={searchRef}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-6 overflow-hidden"
-              >
-                <SearchModule onSearch={handleSearch} compact />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Controls Row: Select Dates + Filters + Category Chips */}
+          <div className="mb-6 space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Select Dates */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "gap-2 rounded-full text-sm h-9 px-4",
+                      hasDate && "bg-primary/10 border-primary text-primary"
+                    )}
+                  >
+                    <Calendar className="w-4 h-4" />
+                    {dateLabel}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-3 space-y-3">
+                    <div className="flex gap-1 bg-muted rounded-lg p-1">
+                      <button
+                        onClick={() => setSearchQuery(q => ({ ...q, dateMode: 'single', dateRange: undefined }))}
+                        className={cn(
+                          'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                          searchQuery.dateMode === 'single' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        Single Date
+                      </button>
+                      <button
+                        onClick={() => setSearchQuery(q => ({ ...q, dateMode: 'range', date: undefined }))}
+                        className={cn(
+                          'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                          searchQuery.dateMode === 'range' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        Date Range
+                      </button>
+                    </div>
+                    {searchQuery.dateMode === 'single' ? (
+                      <CalendarComponent
+                        mode="single"
+                        selected={searchQuery.date}
+                        onSelect={(d) => setSearchQuery(q => ({ ...q, date: d }))}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    ) : (
+                      <CalendarComponent
+                        mode="range"
+                        selected={searchQuery.dateRange}
+                        onSelect={(r) => setSearchQuery(q => ({ ...q, dateRange: r }))}
+                        numberOfMonths={2}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    )}
+                    {hasDate && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-muted-foreground"
+                        onClick={() => setSearchQuery(q => ({ ...q, date: undefined, dateRange: undefined }))}
+                      >
+                        <X className="w-3 h-3 mr-1" /> Clear date
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-          {/* Search Context Bar - visible when results are showing */}
-          {!loading && filteredEvents.length > 0 && (
-            <div className="mb-4">
-              <SearchContextBar
-                location={searchQuery.location}
-                category={searchQuery.category}
-                date={searchQuery.date}
-                dateRange={searchQuery.dateRange}
-                dateMode={searchQuery.dateMode}
-                priceFilter={filters.priceRange}
-                activeCategories={filters.categories}
-                resultCount={filteredEvents.length}
-                onEditSearch={handleEditSearch}
-                onNewSearch={handleNewSearch}
-                onRemoveLocation={() => setSearchQuery((q) => ({ ...q, location: '' }))}
-                onRemoveCategory={() => setSearchQuery((q) => ({ ...q, category: 'all' }))}
-                onRemoveDate={() => setSearchQuery((q) => ({ ...q, date: undefined, dateRange: undefined }))}
-                onRemovePrice={() => setFilters((f) => ({ ...f, priceRange: 'all' }))}
-                onRemoveActiveCategory={(cat) =>
-                  setFilters((f) => ({ ...f, categories: f.categories.filter((c) => c !== cat) }))
-                }
-              />
+              {/* Filters Popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "gap-2 rounded-full text-sm h-9 px-4",
+                      priceFilter !== 'all' && "bg-primary/10 border-primary text-primary"
+                    )}
+                  >
+                    <Filter className="w-4 h-4" />
+                    Filters
+                    {priceFilter !== 'all' && (
+                      <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full ml-1">1</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64" align="start">
+                  <div className="space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Price</h4>
+                      <div className="flex gap-2">
+                        {(['all', 'free', 'paid'] as const).map((opt) => (
+                          <Button
+                            key={opt}
+                            variant={priceFilter === opt ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setPriceFilter(opt)}
+                            className="flex-1 text-xs"
+                          >
+                            {opt === 'all' ? 'All' : opt === 'free' ? 'Free' : 'Paid'}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Location</h4>
+                      <Select
+                        value={searchQuery.location || 'all'}
+                        onValueChange={(v) => setSearchQuery(q => ({ ...q, location: v === 'all' ? '' : v }))}
+                      >
+                        <SelectTrigger className="w-full h-9 text-sm">
+                          <MapPin className="w-3.5 h-3.5 text-muted-foreground mr-1" />
+                          <SelectValue placeholder="All Locations" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Locations</SelectItem>
+                          {metroAreas.map((metro) => (
+                            <SelectItem key={metro.value} value={metro.value}>
+                              {metro.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Category Chips - horizontally scrollable */}
+              <div className="relative flex-1 min-w-0 flex items-center">
+                <button
+                  onClick={() => scrollChips('left')}
+                  className="shrink-0 hidden sm:flex items-center justify-center w-7 h-7 rounded-full bg-card border border-border shadow-sm hover:bg-muted mr-1"
+                  aria-label="Scroll categories left"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div
+                  ref={chipsRef}
+                  className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {categoryChips.map((chip) => (
+                    <button
+                      key={chip.value}
+                      onClick={() => setActiveChip(chip.value)}
+                      className={cn(
+                        'shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors whitespace-nowrap',
+                        activeChip === chip.value
+                          ? 'bg-foreground text-background border-foreground'
+                          : 'bg-background text-foreground border-border hover:bg-muted'
+                      )}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => scrollChips('right')}
+                  className="shrink-0 hidden sm:flex items-center justify-center w-7 h-7 rounded-full bg-card border border-border shadow-sm hover:bg-muted ml-1"
+                  aria-label="Scroll categories right"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Results count + Sort */}
+          {!loading && (
+            <div className="flex items-center justify-between mb-5">
+              <p className="text-sm font-medium text-foreground">
+                <span className="font-bold">{displayEvents.length}</span>{' '}
+                result{displayEvents.length !== 1 ? 's' : ''}
+              </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-1.5 text-sm">
+                    Sort by: <span className="font-semibold">{sortLabels[sortBy]}</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {(Object.keys(sortLabels) as SortOption[]).map((opt) => (
+                    <DropdownMenuItem
+                      key={opt}
+                      onClick={() => setSortBy(opt)}
+                      className={cn(sortBy === opt && 'font-semibold')}
+                    >
+                      {sortLabels[opt]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
-          {/* Filters */}
-          <div className="mb-8">
-            <SearchFilters
-              filters={filters}
-              onFiltersChange={setFilters}
-              onClearFilters={() => setFilters(defaultFilters)}
-            />
-          </div>
-
-          {/* Results */}
+          {/* Results Grid */}
           {loading ? (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-12 h-12 bg-muted rounded-full mb-4 animate-pulse">
@@ -346,176 +479,97 @@ export default function EventsPage() {
               </div>
               <p className="text-muted-foreground">Loading events...</p>
             </div>
-          ) : categoryGroupedEvents.length > 0 ? (
-            <div className="space-y-10">
-              {categoryGroupedEvents.map(([catSlug, catEvents]) => {
-                const isExpanded = expandedCategories.has(catSlug);
-                const visibleEvents = isExpanded ? catEvents : catEvents.slice(0, INITIAL_VISIBLE_COUNT);
-                const hasMore = catEvents.length > INITIAL_VISIBLE_COUNT;
-                const catLabel = categoryLabels[catSlug] || catSlug;
-                const colorClass = categoryColors[catSlug] || 'bg-muted text-muted-foreground';
-
+          ) : displayEvents.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {displayEvents.map((event, index) => {
+                const eventImage = getEventImage(event);
                 return (
-                  <motion.section
-                    key={catSlug}
-                    initial={{ opacity: 0, y: 20 }}
+                  <motion.div
+                    key={event.event_id}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ delay: Math.min(index * 0.02, 0.3) }}
+                    className="group bg-card rounded-xl overflow-hidden cursor-pointer border border-border hover:shadow-lg transition-shadow"
+                    onClick={() => setSelectedEvent(event)}
                   >
-                    {/* Category Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={cn('inline-flex items-center justify-center w-9 h-9 rounded-lg', colorClass)}>
-                          <CategoryIcon slug={catSlug} />
+                    {/* Image */}
+                    <div className="aspect-[4/3] relative overflow-hidden bg-muted">
+                      {event.is_free && (
+                        <div className="absolute top-2.5 left-2.5 z-10 bg-primary text-primary-foreground px-2.5 py-0.5 rounded-full text-xs font-semibold">
+                          FREE
                         </div>
-                        <div>
-                          <h2 className="font-display text-xl font-bold text-foreground">
-                            {catLabel}
-                          </h2>
-                          <p className="text-xs text-muted-foreground">
-                            {catEvents.length} event{catEvents.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-                      {hasMore && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => toggleCategoryExpand(catSlug)}
-                          className="text-primary hover:text-primary gap-1"
-                        >
-                          {isExpanded ? 'Show less' : `See all ${catEvents.length}`}
-                          <ChevronRight className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')} />
-                        </Button>
                       )}
-                    </div>
-
-                    {/* Event Cards */}
-                    <div className="space-y-3">
-                      {visibleEvents.map((event, index) => {
-                        const eventImage = getEventImage(event);
-                        return (
-                          <motion.div
-                            key={event.event_id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.04 }}
-                            className="group bg-card rounded-xl overflow-hidden card-hover cursor-pointer border border-border"
-                            onClick={() => setSelectedEvent(event)}
-                          >
-                            <div className="flex flex-col sm:flex-row">
-                              {/* Image */}
-                              <div className="sm:w-48 sm:min-h-[140px] relative overflow-hidden bg-muted shrink-0">
-                                {event.category_names && event.category_names.length > 0 && (
-                                  <div className="absolute top-2 left-2 z-10 flex flex-wrap gap-1">
-                                    {event.category_names.map((cat) => (
-                                      <CategoryBadge key={cat} category={cat} className="text-[10px] px-1.5 py-0.5" />
-                                    ))}
-                                  </div>
-                                )}
-                                {event.is_free && (
-                                  <div className="absolute top-2 right-2 z-10 bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-xs font-semibold">
-                                    FREE
-                                  </div>
-                                )}
-                                <img
-                                  src={eventImage}
-                                  alt={event.title}
-                                  className="w-full h-full min-h-[120px] object-cover"
-                                  loading="lazy"
-                                />
-                              </div>
-
-                              {/* Content */}
-                              <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex items-start justify-between gap-2">
-                                    <h3 className="font-display text-lg font-semibold text-foreground group-hover:text-primary transition-colors mb-1.5">
-                                      {event.title}
-                                    </h3>
-                                    <SaveEventButton
-                                      eventId={event.event_id}
-                                      isSaved={isSaved(event.event_id)}
-                                      isLoggedIn={!!userId}
-                                      onToggle={() => toggleSave(event.event_id)}
-                                      loading={saveLoading}
-                                      size="icon"
-                                      className="shrink-0"
-                                    />
-                                  </div>
-                                  {event.description_short && (
-                                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                                      {event.description_short}
-                                    </p>
-                                  )}
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <Calendar className="w-3.5 h-3.5 text-primary" />
-                                    {format(parseISO(event.start_time), 'EEE, MMM d')}
-                                  </span>
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-primary" />
-                                    {event.all_day
-                                      ? 'All Day'
-                                      : format(parseISO(event.start_time), 'h:mm a')}
-                                  </span>
-                                  {event.venue_name && (
-                                    <span className="inline-flex items-center gap-1.5">
-                                      <MapPin className="w-3.5 h-3.5 text-primary" />
-                                      {event.venue_name}
-                                      {event.venue_city ? `, ${event.venue_city}` : ''}
-                                    </span>
-                                  )}
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <DollarSign className="w-3.5 h-3.5 text-primary" />
-                                    {event.is_free ? (
-                                      <span className="text-primary font-medium">Free</span>
-                                    ) : event.price_min ? (
-                                      <span className="font-medium text-foreground">
-                                        ${Number(event.price_min)}
-                                        {event.price_max && event.price_max !== event.price_min
-                                          ? ` – $${Number(event.price_max)}`
-                                          : ''}
-                                      </span>
-                                    ) : (
-                                      <span className="font-medium text-foreground">See details</span>
-                                    )}
-                                  </span>
-                                  {event.discount_info && (
-                                    <span className="inline-flex items-center gap-1.5 text-primary font-medium">
-                                      <Tag className="w-3.5 h-3.5" />
-                                      {event.discount_info}
-                                    </span>
-                                  )}
-                                  {event.age_restriction && (
-                                    <span className="text-xs bg-muted px-2 py-0.5 rounded-full">
-                                      {event.age_restriction}+
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-
-                    {/* See All link at bottom */}
-                    {hasMore && !isExpanded && (
-                      <div className="mt-3 text-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleCategoryExpand(catSlug)}
-                          className="text-primary border-primary/30 hover:bg-primary/5"
-                        >
-                          View all {catEvents.length} {catLabel} events
-                        </Button>
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <SaveEventButton
+                          eventId={event.event_id}
+                          isSaved={isSaved(event.event_id)}
+                          isLoggedIn={!!userId}
+                          onToggle={() => toggleSave(event.event_id)}
+                          loading={saveLoading}
+                          size="icon"
+                          className="bg-background/80 backdrop-blur-sm border-0 hover:bg-background shadow-sm"
+                        />
                       </div>
-                    )}
-                  </motion.section>
+                      <img
+                        src={eventImage}
+                        alt={event.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-3.5 space-y-2">
+                      {/* Category chip */}
+                      {event.category_names?.[0] && (
+                        <span className="inline-block text-[11px] font-medium text-muted-foreground">
+                          {event.category_names[0]}
+                        </span>
+                      )}
+
+                      <h3 className="font-display text-[15px] font-semibold text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                        {event.title}
+                      </h3>
+
+                      {/* Date & time */}
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span>{format(parseISO(event.start_time), 'EEE, MMM d')}</span>
+                        {!event.all_day && (
+                          <>
+                            <span className="text-border">·</span>
+                            <span>{format(parseISO(event.start_time), 'h:mm a')}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Venue */}
+                      {event.venue_name && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+                          <span className="line-clamp-1">
+                            {event.venue_name}{event.venue_city ? `, ${event.venue_city}` : ''}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Price */}
+                      <div className="pt-1">
+                        {event.is_free ? (
+                          <span className="text-primary font-semibold text-sm">Free</span>
+                        ) : event.price_min ? (
+                          <span className="text-foreground font-semibold text-sm">
+                            from <span className="text-lg">${Number(event.price_min)}</span>
+                            {event.price_max && event.price_max !== event.price_min && (
+                              <span className="text-muted-foreground font-normal text-sm"> – ${Number(event.price_max)}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">See details</span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -535,10 +589,10 @@ export default function EventsPage() {
                 We couldn't find any events matching your search. Try broadening your filters or searching a different area.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button onClick={handleEditSearch} variant="outline" className="gap-2">
-                  Edit Search
+                <Button onClick={() => { setActiveChip('all'); setPriceFilter('all'); }} variant="outline" className="gap-2">
+                  Clear Filters
                 </Button>
-                <Button onClick={handleNewSearch} className="gap-2">
+                <Button onClick={() => { setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' }); setActiveChip('all'); setPriceFilter('all'); }} className="gap-2">
                   Start New Search
                 </Button>
               </div>
