@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2 } from 'lucide-react';
+import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { categoryNameSchema, subcategoryNameSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,6 +24,12 @@ type Category = Tables<'categories'>;
 type Subcategory = Tables<'subcategories'>;
 type UserRole = Tables<'user_roles'>;
 type FeedRegistry = Tables<'feed_registry'>;
+type PartnerEvent = Tables<'partner_events'>;
+
+interface PartnerEventWithProfile extends PartnerEvent {
+  partner_profiles: { business_name: string; slug: string } | null;
+  categories: { name: string } | null;
+}
 
 interface UserWithRole extends Profile {
   roles: string[];
@@ -64,6 +71,12 @@ export default function AdminPage() {
   const [newFeedCity, setNewFeedCity] = useState('');
   const [scrapeRunning, setScrapeRunning] = useState(false);
 
+  // Moderation state
+  const [pendingEvents, setPendingEvents] = useState<PartnerEventWithProfile[]>([]);
+  const [moderationFilter, setModerationFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [moderationNotes, setModerationNotes] = useState<Record<string, string>>({});
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -88,13 +101,14 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes, feedsRes] = await Promise.all([
+    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes, feedsRes, partnerEventsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
       supabase.from('categories').select('*').order('display_order'),
       supabase.from('subcategories').select('*').order('name'),
       supabase.from('events').select('id'),
       supabase.from('feed_registry').select('*').eq('feed_type', 'html').order('feed_name'),
+      supabase.from('partner_events').select('*, partner_profiles!inner(business_name, slug), categories(name)').order('created_at', { ascending: false }),
     ]);
 
     // Merge profiles with roles
@@ -111,6 +125,7 @@ export default function AdminPage() {
     setCategories(cats);
     setSubcategories(subs);
     setScrapeSources(feedsRes.data || []);
+    setPendingEvents((partnerEventsRes.data || []) as unknown as PartnerEventWithProfile[]);
 
     const roleCount = (role: string) => allRoles.filter(r => r.role === role).length;
     setStats({
@@ -123,6 +138,50 @@ export default function AdminPage() {
     });
 
     setLoading(false);
+  };
+
+  // Moderation handlers
+  const handleApproveEvent = async (eventId: string) => {
+    const { error } = await supabase.from('partner_events').update({ 
+      status: 'approved', 
+      moderation_notes: moderationNotes[eventId] || null 
+    }).eq('id', eventId);
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      setModerationNotes(prev => { const n = { ...prev }; delete n[eventId]; return n; });
+      await loadData();
+      toast({ title: 'Event approved', description: 'The event is now live in search results.' });
+    }
+  };
+
+  const handleRejectEvent = async (eventId: string) => {
+    if (!moderationNotes[eventId]?.trim()) {
+      toast({ title: 'Notes required', description: 'Please provide a reason for rejection.', variant: 'destructive' });
+      return;
+    }
+    const { error } = await supabase.from('partner_events').update({ 
+      status: 'rejected', 
+      moderation_notes: moderationNotes[eventId] 
+    }).eq('id', eventId);
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      setModerationNotes(prev => { const n = { ...prev }; delete n[eventId]; return n; });
+      await loadData();
+      toast({ title: 'Event rejected', description: 'The partner has been notified with your feedback.' });
+    }
+  };
+
+  const filteredModerationEvents = pendingEvents.filter(e => 
+    moderationFilter === 'all' ? true : e.status === moderationFilter
+  );
+
+  const moderationCounts = {
+    pending: pendingEvents.filter(e => e.status === 'pending').length,
+    approved: pendingEvents.filter(e => e.status === 'approved').length,
+    rejected: pendingEvents.filter(e => e.status === 'rejected').length,
+    all: pendingEvents.length,
   };
 
   // Category CRUD
@@ -374,6 +433,12 @@ export default function AdminPage() {
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="mb-6">
                 <TabsTrigger value="users" className="gap-2"><Users className="w-4 h-4" />Users</TabsTrigger>
+                <TabsTrigger value="moderation" className="gap-2">
+                  <ClipboardCheck className="w-4 h-4" />Moderation
+                  {moderationCounts.pending > 0 && (
+                    <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{moderationCounts.pending}</Badge>
+                  )}
+                </TabsTrigger>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
                 <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
                 <TabsTrigger value="stats" className="gap-2"><BarChart3 className="w-4 h-4" />Statistics</TabsTrigger>
@@ -729,6 +794,158 @@ export default function AdminPage() {
                       </TableBody>
                     </Table>
                   </div>
+                </div>
+              </TabsContent>
+
+              {/* Moderation Tab */}
+              <TabsContent value="moderation">
+                <div className="bg-card rounded-xl border border-border p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="font-display text-lg font-semibold text-foreground">Partner Event Moderation</h2>
+                    <div className="flex gap-2">
+                      {([
+                        { key: 'pending', label: 'Pending', count: moderationCounts.pending },
+                        { key: 'approved', label: 'Approved', count: moderationCounts.approved },
+                        { key: 'rejected', label: 'Rejected', count: moderationCounts.rejected },
+                        { key: 'all', label: 'All', count: moderationCounts.all },
+                      ] as const).map(f => (
+                        <Button
+                          key={f.key}
+                          size="sm"
+                          variant={moderationFilter === f.key ? 'default' : 'outline'}
+                          onClick={() => setModerationFilter(f.key)}
+                          className="text-xs"
+                        >
+                          {f.label} ({f.count})
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {filteredModerationEvents.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <ClipboardCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p>No {moderationFilter === 'all' ? '' : moderationFilter} events to review</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredModerationEvents.map(event => (
+                        <div key={event.id} className="border border-border rounded-lg overflow-hidden">
+                          <div
+                            className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                            onClick={() => setExpandedEvent(expandedEvent === event.id ? null : event.id)}
+                          >
+                            {event.image_url && (
+                              <img src={event.image_url} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-foreground truncate">{event.title}</h3>
+                                <Badge
+                                  variant={event.status === 'approved' ? 'default' : event.status === 'rejected' ? 'destructive' : 'secondary'}
+                                  className="text-xs flex-shrink-0"
+                                >
+                                  {event.status}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Building2 className="w-3 h-3" />
+                                  {event.partner_profiles?.business_name || 'Unknown'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(event.event_date).toLocaleDateString()}
+                                </span>
+                                {event.event_time && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    {event.event_time}
+                                  </span>
+                                )}
+                                {event.categories?.name && (
+                                  <Badge variant="outline" className="text-xs">{event.categories.name}</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <Eye className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                          </div>
+
+                          {expandedEvent === event.id && (
+                            <div className="border-t border-border p-4 bg-muted/10 space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground font-medium">Description</Label>
+                                  <p className="text-sm text-foreground">{event.description || 'No description provided'}</p>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground font-medium">Venue & Location</Label>
+                                  <p className="text-sm text-foreground">
+                                    {[event.venue_name, event.venue_address, event.city, event.state, event.zip_code].filter(Boolean).join(', ') || 'Not specified'}
+                                  </p>
+                                  <Label className="text-xs text-muted-foreground font-medium">Pricing</Label>
+                                  <p className="text-sm text-foreground">
+                                    {event.is_free ? 'Free' : event.price ? `$${event.price}` : 'Not specified'}
+                                  </p>
+                                  {event.ticket_url && (
+                                    <>
+                                      <Label className="text-xs text-muted-foreground font-medium">Ticket URL</Label>
+                                      <a href={event.ticket_url} target="_blank" rel="noopener noreferrer" className="text-sm text-secondary hover:underline block truncate">{event.ticket_url}</a>
+                                    </>
+                                  )}
+                                  {event.age_restriction && (
+                                    <>
+                                      <Label className="text-xs text-muted-foreground font-medium">Age Restriction</Label>
+                                      <p className="text-sm text-foreground">{event.age_restriction}+</p>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              {event.moderation_notes && event.status !== 'pending' && (
+                                <div className="bg-muted/50 rounded-lg p-3">
+                                  <Label className="text-xs text-muted-foreground font-medium">Previous Moderation Notes</Label>
+                                  <p className="text-sm text-foreground mt-1">{event.moderation_notes}</p>
+                                </div>
+                              )}
+
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">Moderation Notes</Label>
+                                <Textarea
+                                  placeholder={event.status === 'pending' ? 'Add notes (required for rejection, optional for approval)...' : 'Update moderation notes...'}
+                                  value={moderationNotes[event.id] || ''}
+                                  onChange={e => setModerationNotes(prev => ({ ...prev, [event.id]: e.target.value }))}
+                                  className="min-h-[80px]"
+                                />
+                              </div>
+
+                              <div className="flex gap-2 justify-end">
+                                {event.status !== 'approved' && (
+                                  <Button
+                                    onClick={() => handleApproveEvent(event.id)}
+                                    className="bg-primary hover:bg-green-dark text-primary-foreground gap-1"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    Approve
+                                  </Button>
+                                )}
+                                {event.status !== 'rejected' && (
+                                  <Button
+                                    onClick={() => handleRejectEvent(event.id)}
+                                    variant="destructive"
+                                    className="gap-1"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                    Reject
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
