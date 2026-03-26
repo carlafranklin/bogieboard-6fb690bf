@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "bogieboard-admin"
+    labels:
+      - "dependencies"
+      - "automated"
+    allow:
+      - dependency-name: "@lovable.dev/cloud-auth-js"
+      - dependency-name: "@supabase/supabase-js"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-router-dom"
+      - dependency-name: "vite"
+      - dependency-name: "@vitejs/plugin-react-swc"
+      - dependency-name: "typescript"
+      - dependency-name: "zod"
+      - dependency-name: "@tanstack/react-query"
+      - dependency-name: "tailwindcss"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci"
