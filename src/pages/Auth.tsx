@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Header } from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { ForgotPasswordDialog } from '@/components/ForgotPasswordDialog';
@@ -70,16 +69,15 @@ export default function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
       });
-      if (result.redirected) return;
-      if (result.error) {
-        toast({ title: 'Error', description: getSafeErrorMessage(result.error), variant: 'destructive' });
-        return;
+      if (error) {
+        toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
       }
-      toast({ title: 'Welcome!' });
-      navigate('/');
     } catch (error: any) {
       toast({ title: 'Sign in failed', description: getSafeErrorMessage(error), variant: 'destructive' });
     }
