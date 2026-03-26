@@ -473,6 +473,42 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Feed Health Alerts */}
+            {feedAlerts.length > 0 && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Feed Health Issues ({feedAlerts.length} feed{feedAlerts.length > 1 ? 's' : ''})</AlertTitle>
+                <AlertDescription>
+                  <div className="mt-2 space-y-1">
+                    {feedAlerts.map((alert, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className={`inline-block w-2 h-2 rounded-full ${
+                          alert.status === 'error' ? 'bg-destructive' : alert.status === 'stale' ? 'bg-yellow-500' : 'bg-muted-foreground'
+                        }`} />
+                        <span className="font-medium">{alert.feed_name}</span>
+                        <span className="text-muted-foreground">({alert.metro_area_slug})</span>
+                        <span>—</span>
+                        <span>
+                          {alert.status === 'error' && (alert.last_error || 'Unknown error')}
+                          {alert.status === 'stale' && `No data in ${alert.hours_since_fetch}h`}
+                          {alert.status === 'never_fetched' && 'Never fetched'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => setActiveTab('scrape')}
+                  >
+                    <Globe className="w-3 h-3 mr-1" />
+                    Go to Scrape Sources
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
               {[
