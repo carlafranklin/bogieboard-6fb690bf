@@ -150,6 +150,55 @@ export default function AdminPage() {
     });
 
     setLoading(false);
+
+    // Check feed health from feed_registry directly
+    checkFeedHealth();
+  };
+
+  const checkFeedHealth = async () => {
+    setFeedHealthLoading(true);
+    try {
+      const { data: feeds } = await supabase
+        .from('feed_registry')
+        .select('feed_name, last_fetched_at, last_error, enabled, metro_area_slug')
+        .eq('enabled', true);
+
+      const now = new Date();
+      const STALE_HOURS = 48;
+      const alerts: FeedHealthItem[] = [];
+
+      for (const feed of feeds || []) {
+        let status: FeedHealthItem['status'] = 'healthy';
+        let hoursSinceFetch: number | null = null;
+
+        if (!feed.last_fetched_at) {
+          status = 'never_fetched';
+        } else {
+          hoursSinceFetch = Math.round((now.getTime() - new Date(feed.last_fetched_at).getTime()) / (1000 * 60 * 60));
+          if (feed.last_error) {
+            status = 'error';
+          } else if (hoursSinceFetch > STALE_HOURS) {
+            status = 'stale';
+          }
+        }
+
+        if (status !== 'healthy') {
+          alerts.push({
+            feed_name: feed.feed_name,
+            status,
+            last_error: feed.last_error,
+            hours_since_fetch: hoursSinceFetch,
+            metro_area_slug: feed.metro_area_slug,
+          });
+        }
+      }
+
+      setFeedAlerts(alerts);
+    } catch (e) {
+      console.error('Feed health check error:', e);
+    } finally {
+      setFeedHealthLoading(false);
+    }
   };
 
   // Moderation handlers
