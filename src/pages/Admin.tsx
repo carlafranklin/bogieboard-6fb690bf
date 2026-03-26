@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock } from 'lucide-react';
+import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { categoryNameSchema, subcategoryNameSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
@@ -77,6 +78,17 @@ export default function AdminPage() {
   const [moderationNotes, setModerationNotes] = useState<Record<string, string>>({});
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
 
+  // Feed health state
+  interface FeedHealthItem {
+    feed_name: string;
+    status: 'healthy' | 'stale' | 'error' | 'never_fetched';
+    last_error: string | null;
+    hours_since_fetch: number | null;
+    metro_area_slug: string;
+  }
+  const [feedAlerts, setFeedAlerts] = useState<FeedHealthItem[]>([]);
+  const [feedHealthLoading, setFeedHealthLoading] = useState(false);
+
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -138,6 +150,55 @@ export default function AdminPage() {
     });
 
     setLoading(false);
+
+    // Check feed health from feed_registry directly
+    checkFeedHealth();
+  };
+
+  const checkFeedHealth = async () => {
+    setFeedHealthLoading(true);
+    try {
+      const { data: feeds } = await supabase
+        .from('feed_registry')
+        .select('feed_name, last_fetched_at, last_error, enabled, metro_area_slug')
+        .eq('enabled', true);
+
+      const now = new Date();
+      const STALE_HOURS = 48;
+      const alerts: FeedHealthItem[] = [];
+
+      for (const feed of feeds || []) {
+        let status: FeedHealthItem['status'] = 'healthy';
+        let hoursSinceFetch: number | null = null;
+
+        if (!feed.last_fetched_at) {
+          status = 'never_fetched';
+        } else {
+          hoursSinceFetch = Math.round((now.getTime() - new Date(feed.last_fetched_at).getTime()) / (1000 * 60 * 60));
+          if (feed.last_error) {
+            status = 'error';
+          } else if (hoursSinceFetch > STALE_HOURS) {
+            status = 'stale';
+          }
+        }
+
+        if (status !== 'healthy') {
+          alerts.push({
+            feed_name: feed.feed_name,
+            status,
+            last_error: feed.last_error,
+            hours_since_fetch: hoursSinceFetch,
+            metro_area_slug: feed.metro_area_slug,
+          });
+        }
+      }
+
+      setFeedAlerts(alerts);
+    } catch (e) {
+      console.error('Feed health check error:', e);
+    } finally {
+      setFeedHealthLoading(false);
+    }
   };
 
   // Moderation handlers
@@ -411,6 +472,42 @@ export default function AdminPage() {
                 <p className="text-sm text-muted-foreground">Manage users, categories, scrape sources, and view statistics</p>
               </div>
             </div>
+
+            {/* Feed Health Alerts */}
+            {feedAlerts.length > 0 && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Feed Health Issues ({feedAlerts.length} feed{feedAlerts.length > 1 ? 's' : ''})</AlertTitle>
+                <AlertDescription>
+                  <div className="mt-2 space-y-1">
+                    {feedAlerts.map((alert, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className={`inline-block w-2 h-2 rounded-full ${
+                          alert.status === 'error' ? 'bg-destructive' : alert.status === 'stale' ? 'bg-yellow-500' : 'bg-muted-foreground'
+                        }`} />
+                        <span className="font-medium">{alert.feed_name}</span>
+                        <span className="text-muted-foreground">({alert.metro_area_slug})</span>
+                        <span>—</span>
+                        <span>
+                          {alert.status === 'error' && (alert.last_error || 'Unknown error')}
+                          {alert.status === 'stale' && `No data in ${alert.hours_since_fetch}h`}
+                          {alert.status === 'never_fetched' && 'Never fetched'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => setActiveTab('scrape')}
+                  >
+                    <Globe className="w-3 h-3 mr-1" />
+                    Go to Scrape Sources
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">

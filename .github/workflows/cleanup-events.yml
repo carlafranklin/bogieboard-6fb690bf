@@ -1,0 +1,25 @@
+name: Cleanup Expired Events
+
+on:
+  schedule:
+    - cron: '0 3 */2 * *' # Every 2 days at 3am UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (no database writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run cleanup-events function
+        run: |
+          curl -s -w "\nHTTP Status: %{http_code}\n" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -d '{"dry_run": ${{ inputs.dry_run || false }}}' \
+            "https://wxmewdwqeeejoetwyiem.supabase.co/functions/v1/cleanup-events"
