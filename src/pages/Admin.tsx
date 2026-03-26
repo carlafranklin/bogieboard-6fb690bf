@@ -78,6 +78,17 @@ export default function AdminPage() {
   const [moderationNotes, setModerationNotes] = useState<Record<string, string>>({});
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
 
+  // Feed health state
+  interface FeedHealthItem {
+    feed_name: string;
+    status: 'healthy' | 'stale' | 'error' | 'never_fetched';
+    last_error: string | null;
+    hours_since_fetch: number | null;
+    metro_area_slug: string;
+  }
+  const [feedAlerts, setFeedAlerts] = useState<FeedHealthItem[]>([]);
+  const [feedHealthLoading, setFeedHealthLoading] = useState(false);
+
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
