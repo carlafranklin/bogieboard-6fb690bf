@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.scrape-events]
 verify_jwt = false
+
+[functions.cleanup-events]
+verify_jwt = false
+
+[functions.monitor-feeds]
+verify_jwt = false
