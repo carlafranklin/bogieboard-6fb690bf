@@ -156,7 +156,7 @@ export default function Welcome() {
 
   const firstName = profile?.first_name || 'there';
   const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
-  const displayCity = profile?.address || currentCity;
+  const displayCity = currentCity || profile?.address || null;
 
   return (
     <div className="min-h-screen bg-background">
