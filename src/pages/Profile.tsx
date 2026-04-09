@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Save, Plus, Trash2, LogOut } from 'lucide-react';
+import { User, Save, Plus, Trash2, LogOut, Camera, MapPin, Home, Star, Upload } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
-import { profileSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,17 +19,24 @@ type Profile = Tables<'profiles'>;
 type Category = Tables<'categories'>;
 type Subcategory = Tables<'subcategories'>;
 type SearchPreference = Tables<'search_preferences'>;
+type AvatarRow = Tables<'avatars'>;
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Partial<Profile>>({});
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [preferences, setPreferences] = useState<SearchPreference[]>([]);
+  const [avatars, setAvatars] = useState<AvatarRow[]>([]);
+  const [showAvatarGallery, setShowAvatarGallery] = useState(false);
+  const [favoriteCities, setFavoriteCities] = useState<string[]>([]);
+  const [newCity, setNewCity] = useState('');
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
@@ -46,40 +54,61 @@ export default function ProfilePage() {
     if (!userId) return;
     const fetchAll = async () => {
       setLoading(true);
-      const [profileRes, catsRes, subsRes, prefsRes] = await Promise.all([
+      const [profileRes, catsRes, subsRes, prefsRes, avatarsRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).single(),
         supabase.from('categories').select('*').order('display_order'),
         supabase.from('subcategories').select('*').order('name'),
         supabase.from('search_preferences').select('*').eq('user_id', userId),
+        supabase.from('avatars').select('*').eq('is_active', true).order('sort_order'),
       ]);
-      if (profileRes.data) setProfile(profileRes.data);
+      if (profileRes.data) {
+        setProfile(profileRes.data);
+        setFavoriteCities(
+          Array.isArray(profileRes.data.favorite_cities)
+            ? (profileRes.data.favorite_cities as string[])
+            : []
+        );
+      }
       if (catsRes.data) setCategories(catsRes.data);
       if (subsRes.data) setSubcategories(subsRes.data);
       if (prefsRes.data) setPreferences(prefsRes.data);
+      if (avatarsRes.data) setAvatars(avatarsRes.data);
       setLoading(false);
     };
     fetchAll();
   }, [userId]);
 
+  // Compute display avatar URL
+  const getAvatarUrl = (): string | null => {
+    if (profile.custom_avatar_url) return profile.custom_avatar_url;
+    if (profile.selected_avatar_id) {
+      const a = avatars.find(av => av.id === profile.selected_avatar_id);
+      if (a?.image_url) return a.image_url;
+    }
+    if (profile.provider_avatar_url) return profile.provider_avatar_url;
+    return null;
+  };
+
+  const avatarUrl = getAvatarUrl();
+  const initials = ((profile.first_name?.charAt(0) || '') + (profile.last_name?.charAt(0) || '')).toUpperCase() || 'U';
+  const isEmojiAvatar = avatarUrl?.startsWith('�') || (avatarUrl?.length || 0) <= 4;
+
   const handleSaveProfile = async () => {
     if (!userId) return;
-    const validation = profileSchema.safeParse({
-      first_name: profile.first_name,
-      last_name: profile.last_name,
-      phone: profile.phone,
-      address: profile.address,
-      date_of_birth: profile.date_of_birth,
-      gender: profile.gender,
-      marital_status: profile.marital_status,
-    });
-    if (!validation.success) {
-      toast({ title: 'Invalid input', description: validation.error.errors[0].message, variant: 'destructive' });
-      return;
-    }
     setSaving(true);
     const { error } = await supabase
       .from('profiles')
-      .update(validation.data)
+      .update({
+        first_name: profile.first_name || null,
+        last_name: profile.last_name || null,
+        phone: profile.phone || null,
+        address: profile.address || null,
+        date_of_birth: profile.date_of_birth || null,
+        gender: profile.gender || null,
+        marital_status: profile.marital_status || null,
+        hometown: profile.hometown || null,
+        favorite_cities: favoriteCities,
+      })
       .eq('user_id', userId);
     setSaving(false);
     if (error) {
@@ -87,6 +116,59 @@ export default function ProfilePage() {
     } else {
       toast({ title: 'Profile saved!' });
     }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    setUploading(true);
+
+    const ext = file.name.split('.').pop();
+    const path = `${userId}/profile.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('profile-photos')
+      .upload(path, file, { upsert: true });
+
+    if (uploadError) {
+      toast({ title: 'Upload failed', description: getSafeErrorMessage(uploadError), variant: 'destructive' });
+      setUploading(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('profile-photos')
+      .getPublicUrl(path);
+
+    // Add cache buster
+    const url = `${publicUrl}?t=${Date.now()}`;
+    await supabase.from('profiles').update({ custom_avatar_url: url, selected_avatar_id: null }).eq('user_id', userId);
+    setProfile(prev => ({ ...prev, custom_avatar_url: url, selected_avatar_id: null }));
+    setUploading(false);
+    toast({ title: 'Photo updated!' });
+  };
+
+  const handleSelectAvatar = async (avatar: AvatarRow) => {
+    if (!userId) return;
+    await supabase.from('profiles').update({
+      selected_avatar_id: avatar.id,
+      custom_avatar_url: null,
+    }).eq('user_id', userId);
+    setProfile(prev => ({ ...prev, selected_avatar_id: avatar.id, custom_avatar_url: null }));
+    setShowAvatarGallery(false);
+    toast({ title: `Avatar set to ${avatar.avatar_name}!` });
+  };
+
+  const handleAddCity = () => {
+    const city = newCity.trim();
+    if (city && favoriteCities.length < 3 && !favoriteCities.includes(city)) {
+      setFavoriteCities([...favoriteCities, city]);
+      setNewCity('');
+    }
+  };
+
+  const handleRemoveCity = (city: string) => {
+    setFavoriteCities(favoriteCities.filter(c => c !== city));
   };
 
   const handleAddPreference = async () => {
@@ -105,18 +187,10 @@ export default function ProfilePage() {
 
   const handleUpdatePreference = async (id: string, field: string, value: string | null) => {
     const updates: Record<string, string | null> = { [field]: value };
-    // Clear subcategory if category changes
     if (field === 'category_id') updates.subcategory_id = null;
-
-    const { error } = await supabase
-      .from('search_preferences')
-      .update(updates)
-      .eq('id', id);
-
+    const { error } = await supabase.from('search_preferences').update(updates).eq('id', id);
     if (!error) {
-      setPreferences(prev =>
-        prev.map(p => p.id === id ? { ...p, ...updates } : p)
-      );
+      setPreferences(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     }
   };
 
@@ -155,21 +229,77 @@ export default function ProfilePage() {
       <main className="pt-24 pb-16 px-4">
         <div className="container mx-auto max-w-3xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h1 className="font-display text-2xl font-bold text-foreground">My Profile</h1>
-                  <p className="text-sm text-muted-foreground">{profile.email}</p>
-                </div>
+            {/* Profile header with avatar */}
+            <div className="flex flex-col sm:flex-row items-center gap-5 mb-8">
+              {/* Avatar with upload overlay */}
+              <div className="relative group">
+                <Avatar className="h-24 w-24 ring-4 ring-primary/10">
+                  {avatarUrl && !isEmojiAvatar ? (
+                    <AvatarImage src={avatarUrl} alt="Profile" />
+                  ) : null}
+                  <AvatarFallback className="bg-primary/10 text-primary text-2xl font-bold">
+                    {isEmojiAvatar && avatarUrl ? (
+                      <span className="text-4xl">{avatarUrl}</span>
+                    ) : initials}
+                  </AvatarFallback>
+                </Avatar>
+                <button
+                  onClick={() => setShowAvatarGallery(true)}
+                  className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  <Camera className="w-6 h-6 text-white" />
+                </button>
               </div>
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <div className="text-center sm:text-left flex-1">
+                <h1 className="font-display text-2xl font-bold text-foreground">
+                  {[profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Your Profile'}
+                </h1>
+                <p className="text-sm text-muted-foreground">{profile.email}</p>
+                {profile.address && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-1 justify-center sm:justify-start mt-1">
+                    <MapPin className="w-3.5 h-3.5" /> {profile.address}
+                  </p>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleSignOut} className="text-destructive border-destructive/30 hover:bg-destructive/10">
                 <LogOut className="w-4 h-4 mr-2" />
                 Sign Out
               </Button>
+            </div>
+
+            {/* Photo & Avatar actions */}
+            <div className="bg-card rounded-2xl shadow-sm border border-border p-6 mb-6">
+              <h2 className="font-display text-lg font-semibold text-foreground mb-4">Profile Photo</h2>
+              <div className="flex flex-wrap gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {uploading ? 'Uploading...' : 'Upload Photo'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAvatarGallery(true)}
+                >
+                  🐾 Choose Avatar
+                </Button>
+              </div>
+              {!avatarUrl && (
+                <p className="text-sm text-muted-foreground mt-3 italic">
+                  Add a profile photo or pick a fun state-animal avatar to personalize your account.
+                </p>
+              )}
             </div>
 
             {/* Personal Info */}
@@ -208,12 +338,20 @@ export default function ProfilePage() {
                     onChange={e => setProfile({ ...profile, date_of_birth: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Address</Label>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Current City</Label>
                   <Input
                     value={profile.address || ''}
                     onChange={e => setProfile({ ...profile, address: e.target.value })}
-                    placeholder="123 Main St, City, State ZIP"
+                    placeholder="Detected automatically or enter manually"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><Home className="w-3.5 h-3.5" /> Hometown</Label>
+                  <Input
+                    value={profile.hometown || ''}
+                    onChange={e => setProfile({ ...profile, hometown: e.target.value })}
+                    placeholder="Where are you from?"
                   />
                 </div>
                 <div className="space-y-2">
@@ -248,6 +386,34 @@ export default function ProfilePage() {
                   </Select>
                 </div>
               </div>
+
+              {/* Favorite cities */}
+              <div className="mt-6">
+                <Label className="flex items-center gap-1.5 mb-2"><Star className="w-3.5 h-3.5" /> Favorite Cities (up to 3)</Label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {favoriteCities.map(city => (
+                    <span key={city} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-sm font-medium px-3 py-1 rounded-full">
+                      {city}
+                      <button onClick={() => handleRemoveCity(city)} className="hover:text-destructive">×</button>
+                    </span>
+                  ))}
+                </div>
+                {favoriteCities.length < 3 && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCity}
+                      onChange={e => setNewCity(e.target.value)}
+                      placeholder="Add a city"
+                      className="max-w-xs"
+                      onKeyDown={e => e.key === 'Enter' && handleAddCity()}
+                    />
+                    <Button variant="outline" size="sm" onClick={handleAddCity}>
+                      <Plus className="w-4 h-4 mr-1" /> Add
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleSaveProfile}
                 disabled={saving}
@@ -350,6 +516,36 @@ export default function ProfilePage() {
         </div>
       </main>
       <Footer />
+
+      {/* Avatar Gallery Modal */}
+      <Dialog open={showAvatarGallery} onOpenChange={setShowAvatarGallery}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl">Choose Your State Animal Avatar</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-4">
+            Pick a fun avatar representing a U.S. state animal. Or upload your own photo above.
+          </p>
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
+            {avatars.map(avatar => (
+              <button
+                key={avatar.id}
+                onClick={() => handleSelectAvatar(avatar)}
+                className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all hover:border-primary hover:bg-primary/5 ${
+                  profile.selected_avatar_id === avatar.id
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border'
+                }`}
+              >
+                <span className="text-3xl">{avatar.image_url}</span>
+                <span className="text-[10px] text-muted-foreground leading-tight text-center line-clamp-2">
+                  {avatar.state_name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

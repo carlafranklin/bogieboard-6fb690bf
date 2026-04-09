@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Menu, X, User, Shield, Search, MapPin, Building2 } from 'lucide-react';
+import { Menu, X, Search, MapPin, Building2, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,45 +13,44 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { metroAreas } from '@/data/metroAreas';
+import { UserAccountMenu } from '@/components/UserAccountMenu';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
   const navigate = useNavigate();
 
-  // Inline search state
   const [searchLocation, setSearchLocation] = useState('');
-  const [searchCategory, setSearchCategory] = useState('all');
 
   useEffect(() => {
+    const checkRoles = async (uid: string) => {
+      const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
+      setIsAdmin(data?.some(r => r.role === 'admin') || false);
+      setIsPartner(data?.some(r => r.role === 'partner') || false);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
       setIsLoggedIn(!!session);
-      if (session) {
-        const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
-        setIsAdmin(data?.some(r => r.role === 'admin') || false);
-        setIsPartner(data?.some(r => r.role === 'partner') || false);
-      } else {
-        setIsAdmin(false);
-        setIsPartner(false);
-      }
+      setUserId(session?.user?.id || null);
+      if (session) checkRoles(session.user.id);
+      else { setIsAdmin(false); setIsPartner(false); }
     });
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setIsLoggedIn(!!session);
-      if (session) {
-        const { data } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
-        setIsAdmin(data?.some(r => r.role === 'admin') || false);
-        setIsPartner(data?.some(r => r.role === 'partner') || false);
-      }
+      setUserId(session?.user?.id || null);
+      if (session) checkRoles(session.user.id);
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
   const handleInlineSearch = () => {
     const params = new URLSearchParams();
     if (searchLocation && searchLocation !== 'all') params.set('location', searchLocation);
-    if (searchCategory && searchCategory !== 'all') params.set('category', searchCategory);
     navigate(`/events?${params.toString()}`);
   };
 
@@ -62,9 +61,9 @@ export function Header() {
       transition={{ duration: 0.4 }}
       className="fixed top-0 left-0 right-0 z-50 bg-secondary backdrop-blur-md border-b border-secondary"
     >
-      <div className="container mx-auto px-6">
-        <div className="flex items-center justify-between h-16 gap-4">
-          {/* Logo - smaller when logged in */}
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="flex items-center justify-between h-16 gap-3">
+          {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0">
             <img
               src={bogieBoardLogo}
@@ -75,7 +74,7 @@ export function Header() {
 
           {/* Inline search for logged-in users (desktop) */}
           {isLoggedIn && (
-            <div className="hidden md:flex items-center gap-2 flex-1 max-w-xl mx-4">
+            <div className="hidden md:flex items-center gap-2 flex-1 max-w-md mx-4">
               <Select value={searchLocation} onValueChange={setSearchLocation}>
                 <SelectTrigger className="w-[160px] h-9 text-sm">
                   <MapPin className="w-3.5 h-3.5 text-muted-foreground mr-1 shrink-0" />
@@ -112,7 +111,7 @@ export function Header() {
 
           {/* Right side actions */}
           <div className="hidden md:flex items-center gap-2 shrink-0">
-            {isLoggedIn ? (
+            {isLoggedIn && userId ? (
               <>
                 <Link to="/events" className="text-sm font-medium text-white hover:text-white/80 transition-colors mr-2">
                   Events
@@ -133,12 +132,7 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
-                <Link to="/profile">
-                  <Button variant="outline" size="sm">
-                    <User className="w-4 h-4 mr-2" />
-                    Profile
-                  </Button>
-                </Link>
+                <UserAccountMenu userId={userId} />
               </>
             ) : (
               <Link to="/auth">
@@ -160,7 +154,7 @@ export function Header() {
             className="md:hidden py-4 border-t border-border"
           >
             <div className="flex flex-col gap-4">
-              {isLoggedIn ? (
+              {isLoggedIn && userId ? (
                 <>
                   {/* Mobile inline search */}
                   <div className="flex gap-2">
@@ -197,11 +191,24 @@ export function Header() {
                       </Button>
                     </Link>
                   )}
-                  <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
-                    <Button variant="outline" className="w-full">
-                      <User className="w-4 h-4 mr-2" />Profile
+                  {/* Mobile account controls */}
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      onClick={() => { navigate('/profile'); setIsMenuOpen(false); }}
+                      className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 text-xs font-semibold rounded-full h-9"
+                    >
+                      Update Profile
                     </Button>
-                  </Link>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={async () => { await supabase.auth.signOut(); navigate('/'); setIsMenuOpen(false); }}
+                      className="flex-1 text-xs font-semibold rounded-full h-9"
+                    >
+                      Logout
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <>
