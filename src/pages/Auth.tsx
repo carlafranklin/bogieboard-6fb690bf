@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { ForgotPasswordDialog } from '@/components/ForgotPasswordDialog';
-import { lovable } from '@/integrations/lovable/index';
 import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 
 export default function AuthPage() {
@@ -70,25 +69,14 @@ export default function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-
-      if (result.error) {
-        toast({ title: 'Error', description: getSafeErrorMessage(result.error), variant: 'destructive' });
-        return;
-      }
-
-      if (result.redirected) {
-        return;
-      }
-
-      // Session is already set by lovable.auth — check roles and redirect
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
-        const isPartner = roles?.some(r => ['partner', 'business', 'admin'].includes(r.role)) || false;
-        navigate(isPartner ? '/partner-dashboard' : '/');
+      if (error) {
+        toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
       }
     } catch (error: any) {
       toast({ title: 'Sign in failed', description: getSafeErrorMessage(error), variant: 'destructive' });
