@@ -23,18 +23,33 @@ export default function AuthCallback() {
         }
       }
 
-      // Check roles to decide redirect
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data: roles } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id);
-        const isPartner = roles?.some(r => r.role === 'partner') || false;
-        navigate(isPartner ? '/partner-dashboard' : '/', { replace: true });
-      } else {
+      if (!session) {
         navigate('/auth', { replace: true });
+        return;
       }
+
+      // Check roles
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', session.user.id);
+
+      const isPartner = roles?.some(r => r.role === 'partner') || false;
+      if (isPartner) {
+        navigate('/partner-dashboard', { replace: true });
+        return;
+      }
+
+      // Check if first-time user (onboarding not completed or skipped)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('onboarding_completed, onboarding_skipped')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      const isFirstTime = !profile?.onboarding_completed && !profile?.onboarding_skipped;
+      navigate(isFirstTime ? '/welcome' : '/', { replace: true });
     };
 
     handleCallback();
