@@ -804,11 +804,15 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           email: string | null
+          favorite_cities: Json | null
           first_name: string | null
           gender: Database["public"]["Enums"]["gender_type"] | null
+          hometown: string | null
           id: string
           last_name: string | null
           marital_status: string | null
+          onboarding_completed: boolean
+          onboarding_skipped: boolean
           phone: string | null
           updated_at: string
           user_id: string
@@ -818,11 +822,15 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
+          favorite_cities?: Json | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["gender_type"] | null
+          hometown?: string | null
           id?: string
           last_name?: string | null
           marital_status?: string | null
+          onboarding_completed?: boolean
+          onboarding_skipped?: boolean
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -832,11 +840,15 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
+          favorite_cities?: Json | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["gender_type"] | null
+          hometown?: string | null
           id?: string
           last_name?: string | null
           marital_status?: string | null
+          onboarding_completed?: boolean
+          onboarding_skipped?: boolean
           phone?: string | null
           updated_at?: string
           user_id?: string
