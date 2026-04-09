@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { ForgotPasswordDialog } from '@/components/ForgotPasswordDialog';
-import { lovable } from '@/integrations/lovable/index';
 import bogieBoardLogo from '@/assets/bogieboard-logo.png';
 
 export default function AuthPage() {
