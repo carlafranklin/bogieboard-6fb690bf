@@ -114,16 +114,15 @@ export default function PartnerMemberPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
-      if (result.redirected) return;
-      if (result.error) {
-        toast({ title: 'Error', description: getSafeErrorMessage(result.error), variant: 'destructive' });
-        return;
+      if (error) {
+        toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
       }
-      toast({ title: 'Welcome!' });
-      navigate('/partner-dashboard');
     } catch (error: any) {
       toast({ title: 'Sign in failed', description: getSafeErrorMessage(error), variant: 'destructive' });
     }
