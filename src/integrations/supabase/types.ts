@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatars: {
+        Row: {
+          animal_name: string
+          avatar_name: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          sort_order: number
+          state_name: string
+          updated_at: string
+        }
+        Insert: {
+          animal_name: string
+          avatar_name: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          sort_order?: number
+          state_name: string
+          updated_at?: string
+        }
+        Update: {
+          animal_name?: string
+          avatar_name?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          sort_order?: number
+          state_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       canonical_events: {
         Row: {
           age_restriction: number | null
@@ -802,6 +838,7 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          custom_avatar_url: string | null
           date_of_birth: string | null
           email: string | null
           favorite_cities: Json | null
@@ -814,12 +851,16 @@ export type Database = {
           onboarding_completed: boolean
           onboarding_skipped: boolean
           phone: string | null
+          provider: string | null
+          provider_avatar_url: string | null
+          selected_avatar_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           address?: string | null
           created_at?: string
+          custom_avatar_url?: string | null
           date_of_birth?: string | null
           email?: string | null
           favorite_cities?: Json | null
@@ -832,12 +873,16 @@ export type Database = {
           onboarding_completed?: boolean
           onboarding_skipped?: boolean
           phone?: string | null
+          provider?: string | null
+          provider_avatar_url?: string | null
+          selected_avatar_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           address?: string | null
           created_at?: string
+          custom_avatar_url?: string | null
           date_of_birth?: string | null
           email?: string | null
           favorite_cities?: Json | null
@@ -850,10 +895,21 @@ export type Database = {
           onboarding_completed?: boolean
           onboarding_skipped?: boolean
           phone?: string | null
+          provider?: string | null
+          provider_avatar_url?: string | null
+          selected_avatar_id?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_selected_avatar_id_fkey"
+            columns: ["selected_avatar_id"]
+            isOneToOne: false
+            referencedRelation: "avatars"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       saved_events: {
         Row: {
