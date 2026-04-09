@@ -52,12 +52,12 @@ export default function AuthPage() {
         const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: isPartnerSignup ? { is_partner: true } : {},
+          },
         });
         if (error) throw error;
-        if (isPartnerSignup && signUpData.user) {
-          await supabase.from('user_roles').insert({ user_id: signUpData.user.id, role: 'partner' });
-        }
         toast({ title: 'Check your email', description: 'We sent you a confirmation link.' });
       }
     } catch (error: any) {
