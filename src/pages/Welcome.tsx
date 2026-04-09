@@ -70,25 +70,57 @@ export default function Welcome() {
         if (!p.onboarding_completed && !p.onboarding_skipped) setShowOnboarding(true);
       }
 
-      detectCity();
+      detectCity(user.id, profileRow?.address ?? null);
       setLoading(false);
     };
     init();
   }, [navigate]);
 
-  const detectCity = () => {
+  const detectCity = async (uid: string, savedAddress: string | null) => {
+    // 1) If profile already has a saved city, use it immediately
+    if (savedAddress) {
+      setCurrentCity(savedAddress);
+      return;
+    }
+
+    // 2) Try IP-based geolocation first (fast, no permission prompt)
+    try {
+      const ipRes = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      if (ipRes.ok) {
+        const ipData = await ipRes.json();
+        const city = ipData.city;
+        const region = ipData.region;
+        if (city) {
+          const detected = region ? `${city}, ${region}` : city;
+          setCurrentCity(detected);
+          // Persist to profile
+          await supabase.from('profiles').update({ address: detected }).eq('user_id', uid);
+          return;
+        }
+      }
+    } catch { /* timeout or network error – fall through */ }
+
+    // 3) Fall back to browser Geolocation API + reverse geocoding
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`, { headers: { 'Accept-Language': 'en' } });
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,
+            { headers: { 'Accept-Language': 'en' }, signal: AbortSignal.timeout(5000) }
+          );
           const data = await res.json();
           const city = data.address?.city || data.address?.town || data.address?.village;
           const state = data.address?.state;
-          if (city) setCurrentCity(state ? `${city}, ${state}` : city);
+          if (city) {
+            const detected = state ? `${city}, ${state}` : city;
+            setCurrentCity(detected);
+            await supabase.from('profiles').update({ address: detected }).eq('user_id', uid);
+          }
         } catch { /* silent */ }
       },
-      () => {}
+      () => { /* permission denied or unavailable – city stays null */ },
+      { timeout: 8000 }
     );
   };
 
@@ -124,7 +156,7 @@ export default function Welcome() {
 
   const firstName = profile?.first_name || 'there';
   const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
-  const displayCity = profile?.address || currentCity;
+  const displayCity = currentCity || profile?.address || null;
 
   return (
     <div className="min-h-screen bg-background">
