@@ -70,7 +70,7 @@ export default function Welcome() {
         if (!p.onboarding_completed && !p.onboarding_skipped) setShowOnboarding(true);
       }
 
-      detectCity();
+      detectCity(user.id, profileRow?.address ?? null);
       setLoading(false);
     };
     init();
