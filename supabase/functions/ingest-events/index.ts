@@ -171,6 +171,48 @@ async function fetchEventbrite(token: string, locations: { lat: string; lon: str
   return events
 }
 
+// ── Validation helpers ─────────────────────────────
+function isValidUrl(url: string | null): boolean {
+  if (!url) return false
+  try {
+    const u = new URL(url)
+    return u.protocol === 'https:' || u.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
+function truncate(val: string | null | undefined, max: number): string | null {
+  if (!val) return null
+  return val.trim().substring(0, max)
+}
+
+function sanitizeEvent(ev: NormalizedEvent): NormalizedEvent | null {
+  // Required fields
+  if (!ev.title || typeof ev.title !== 'string' || ev.title.trim().length === 0) return null
+  if (!ev.start_time || typeof ev.start_time !== 'string') return null
+  if (!ev.venue_city || typeof ev.venue_city !== 'string') return null
+
+  return {
+    ...ev,
+    title: ev.title.trim().substring(0, 500),
+    description_short: truncate(ev.description_short, 500),
+    description_long: truncate(ev.description_long, 5000),
+    venue_name: (ev.venue_name || 'TBA').trim().substring(0, 200),
+    venue_city: ev.venue_city.trim().substring(0, 100),
+    venue_state: (ev.venue_state || '').trim().substring(0, 50),
+    venue_address: truncate(ev.venue_address, 300),
+    venue_zip: truncate(ev.venue_zip, 20),
+    ticket_url: isValidUrl(ev.ticket_url) ? ev.ticket_url : null,
+    image_url: isValidUrl(ev.image_url) ? ev.image_url : null,
+    source_url: isValidUrl(ev.source_url) ? ev.source_url : null,
+    category_names: (ev.category_names || [])
+      .filter((c): c is string => typeof c === 'string' && c.trim().length > 0 && c !== 'Undefined')
+      .map(c => c.trim().substring(0, 50))
+      .slice(0, 10),
+  }
+}
+
 // ── Upsert Logic ──────────────────────────────────
 async function upsertEvents(
   supabase: any,
@@ -181,7 +223,13 @@ async function upsertEvents(
 ) {
   let created = 0, updated = 0, skipped = 0, errors = 0
 
-  for (const ev of events) {
+  for (const rawEv of events) {
+    const ev = sanitizeEvent(rawEv)
+    if (!ev) {
+      console.warn('Skipping invalid event:', rawEv.title)
+      skipped++
+      continue
+    }
     try {
       // Determine metro area from city
       let metroAreaId: string | null = null
