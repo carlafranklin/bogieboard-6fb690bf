@@ -34,15 +34,10 @@ export default function AuthCallback() {
       const meta = user.user_metadata || {};
       const profileUpdate: Record<string, any> = {};
 
-      // Extract name from provider metadata
       const fullName = meta.full_name || meta.name || '';
       const firstName = fullName.split(' ')[0] || meta.given_name || '';
       const lastName = fullName.split(' ').slice(1).join(' ') || meta.family_name || '';
-
-      // Extract avatar URL from provider
       const providerAvatarUrl = meta.avatar_url || meta.picture || null;
-
-      // Determine provider
       const provider = user.app_metadata?.provider || null;
 
       if (firstName) profileUpdate.first_name = firstName;
@@ -50,23 +45,33 @@ export default function AuthCallback() {
       if (providerAvatarUrl) profileUpdate.provider_avatar_url = providerAvatarUrl;
       if (provider) profileUpdate.provider = provider;
 
-      // Update profile with social data (only fill in blanks)
-      if (Object.keys(profileUpdate).length > 0) {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('first_name, last_name, provider_avatar_url, provider')
-          .eq('user_id', user.id)
-          .maybeSingle();
+      // Fetch existing profile to check new vs returning
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, provider_avatar_url, provider, last_login_at, first_login_at, onboarding_completed, onboarding_skipped')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-        const finalUpdate: Record<string, any> = {};
-        if (!existingProfile?.first_name && profileUpdate.first_name) finalUpdate.first_name = profileUpdate.first_name;
-        if (!existingProfile?.last_name && profileUpdate.last_name) finalUpdate.last_name = profileUpdate.last_name;
-        if (!existingProfile?.provider_avatar_url && profileUpdate.provider_avatar_url) finalUpdate.provider_avatar_url = profileUpdate.provider_avatar_url;
-        if (!existingProfile?.provider && profileUpdate.provider) finalUpdate.provider = profileUpdate.provider;
+      const now = new Date().toISOString();
+      const isFirstTime = !existingProfile?.first_login_at && !(existingProfile as any)?.last_login_at;
 
-        if (Object.keys(finalUpdate).length > 0) {
-          await supabase.from('profiles').update(finalUpdate).eq('user_id', user.id);
-        }
+      // Build update payload
+      const finalUpdate: Record<string, any> = {
+        last_login_at: now,
+      };
+
+      if (isFirstTime) {
+        finalUpdate.first_login_at = now;
+      }
+
+      // Only fill in blanks from social data
+      if (!existingProfile?.first_name && profileUpdate.first_name) finalUpdate.first_name = profileUpdate.first_name;
+      if (!existingProfile?.last_name && profileUpdate.last_name) finalUpdate.last_name = profileUpdate.last_name;
+      if (!existingProfile?.provider_avatar_url && profileUpdate.provider_avatar_url) finalUpdate.provider_avatar_url = profileUpdate.provider_avatar_url;
+      if (!existingProfile?.provider && profileUpdate.provider) finalUpdate.provider = profileUpdate.provider;
+
+      if (Object.keys(finalUpdate).length > 0) {
+        await supabase.from('profiles').update(finalUpdate).eq('user_id', user.id);
       }
 
       // Check roles
@@ -81,15 +86,9 @@ export default function AuthCallback() {
         return;
       }
 
-      // Check if first-time user
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('onboarding_completed, onboarding_skipped')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      const isFirstTime = !profile?.onboarding_completed && !profile?.onboarding_skipped;
-      navigate(isFirstTime ? '/welcome' : '/', { replace: true });
+      // Route: first-time users go to /welcome, returning users also go to /welcome (different messaging)
+      const isNewUser = isFirstTime || (!existingProfile?.onboarding_completed && !existingProfile?.onboarding_skipped);
+      navigate(isNewUser ? '/welcome' : '/welcome', { replace: true });
     };
 
     handleCallback();

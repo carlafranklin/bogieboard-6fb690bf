@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Save, Plus, Trash2, Camera, MapPin, Home, Star, Upload,
-  Heart, ChevronRight, Check, X, Sparkles, Calendar, ImageIcon
+  Heart, ChevronRight, Check, X, Sparkles, Calendar, ImageIcon, Loader2
 } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { CityAutocomplete } from '@/components/CityAutocomplete';
+import { detectUserLocation } from '@/lib/locationUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +63,7 @@ export default function ProfilePage() {
   const [savedEvents, setSavedEvents] = useState<any[]>([]);
   const [memberSince, setMemberSince] = useState<string>('');
   const [imgError, setImgError] = useState(false);
+  const [detectingCity, setDetectingCity] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
@@ -365,13 +368,43 @@ export default function ProfilePage() {
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <MapPin className="w-3 h-3" /> Current City
                 </Label>
-                <Input value={profile.address || ''} onChange={e => setProfile({ ...profile, address: e.target.value })} placeholder="Auto-detected or enter manually" className="h-10 rounded-lg" />
+                <div className="flex gap-2 items-start">
+                  <CityAutocomplete
+                    value={profile.address || ''}
+                    onChange={(val) => setProfile({ ...profile, address: val })}
+                    placeholder="Search city or zip…"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 rounded-lg shrink-0 text-xs"
+                    disabled={detectingCity}
+                    onClick={async () => {
+                      setDetectingCity(true);
+                      const loc = await detectUserLocation();
+                      setDetectingCity(false);
+                      if (loc.display) {
+                        setProfile({ ...profile, address: loc.display });
+                      }
+                    }}
+                  >
+                    {detectingCity ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+                {!profile.address && !detectingCity && (
+                  <p className="text-xs text-muted-foreground/60 italic mt-1">Type a city or zip, or click the pin to auto-detect.</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Home className="w-3 h-3" /> Hometown
                 </Label>
-                <Input value={profile.hometown || ''} onChange={e => setProfile({ ...profile, hometown: e.target.value })} placeholder="Where are you from?" className="h-10 rounded-lg" />
+                <CityAutocomplete
+                  value={profile.hometown || ''}
+                  onChange={(val) => setProfile({ ...profile, hometown: val })}
+                  placeholder="Where are you from?"
+                />
                 {!profile.hometown && (
                   <p className="text-xs text-muted-foreground/60 italic mt-1">Tell us where you're from to get local recommendations.</p>
                 )}
@@ -408,15 +441,14 @@ export default function ProfilePage() {
                 )}
               </div>
               {favoriteCities.length < 3 && (
-                <div className="flex gap-2">
-                  <Input
+                <div className="flex gap-2 items-start">
+                  <CityAutocomplete
                     value={newCity}
-                    onChange={e => setNewCity(e.target.value)}
-                    placeholder="Add a city"
-                    className="max-w-xs h-9 rounded-lg"
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddCity())}
+                    onChange={(val) => setNewCity(val)}
+                    placeholder="Search city to add…"
+                    className="max-w-xs"
                   />
-                  <Button variant="outline" size="sm" onClick={handleAddCity} className="rounded-full h-9 active:scale-95 transition-all">
+                  <Button variant="outline" size="sm" onClick={handleAddCity} className="rounded-full h-10 active:scale-95 transition-all">
                     <Plus className="w-3.5 h-3.5 mr-1" /> Add
                   </Button>
                 </div>
