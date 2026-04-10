@@ -209,6 +209,53 @@ export type Database = {
           },
         ]
       }
+      city_lookup: {
+        Row: {
+          city_name: string
+          country_code: string
+          created_at: string
+          display_name: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          metro_area_id: string | null
+          state_code: string
+          zip_code: string | null
+        }
+        Insert: {
+          city_name: string
+          country_code?: string
+          created_at?: string
+          display_name: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          metro_area_id?: string | null
+          state_code?: string
+          zip_code?: string | null
+        }
+        Update: {
+          city_name?: string
+          country_code?: string
+          created_at?: string
+          display_name?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          metro_area_id?: string | null
+          state_code?: string
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "city_lookup_metro_area_id_fkey"
+            columns: ["metro_area_id"]
+            isOneToOne: false
+            referencedRelation: "metro_areas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       click_logs: {
         Row: {
           canonical_event_id: string | null
@@ -562,6 +609,8 @@ export type Database = {
           id: string
           included_counties: Json
           included_zip_prefixes: Json | null
+          latitude: number | null
+          longitude: number | null
           name: string
           slug: string
         }
@@ -571,6 +620,8 @@ export type Database = {
           id?: string
           included_counties?: Json
           included_zip_prefixes?: Json | null
+          latitude?: number | null
+          longitude?: number | null
           name: string
           slug: string
         }
@@ -580,6 +631,8 @@ export type Database = {
           id?: string
           included_counties?: Json
           included_zip_prefixes?: Json | null
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           slug?: string
         }
@@ -838,15 +891,23 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          current_city: string | null
+          current_state: string | null
+          current_zip: string | null
           custom_avatar_url: string | null
           date_of_birth: string | null
+          detected_city: string | null
+          detected_state: string | null
+          detected_zip: string | null
           email: string | null
           favorite_cities: Json | null
+          first_login_at: string | null
           first_name: string | null
           gender: Database["public"]["Enums"]["gender_type"] | null
           hometown: string | null
           id: string
           interests: Json | null
+          last_login_at: string | null
           last_name: string | null
           marital_status: string | null
           onboarding_completed: boolean
@@ -861,15 +922,23 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          current_city?: string | null
+          current_state?: string | null
+          current_zip?: string | null
           custom_avatar_url?: string | null
           date_of_birth?: string | null
+          detected_city?: string | null
+          detected_state?: string | null
+          detected_zip?: string | null
           email?: string | null
           favorite_cities?: Json | null
+          first_login_at?: string | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["gender_type"] | null
           hometown?: string | null
           id?: string
           interests?: Json | null
+          last_login_at?: string | null
           last_name?: string | null
           marital_status?: string | null
           onboarding_completed?: boolean
@@ -884,15 +953,23 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          current_city?: string | null
+          current_state?: string | null
+          current_zip?: string | null
           custom_avatar_url?: string | null
           date_of_birth?: string | null
+          detected_city?: string | null
+          detected_state?: string | null
+          detected_zip?: string | null
           email?: string | null
           favorite_cities?: Json | null
+          first_login_at?: string | null
           first_name?: string | null
           gender?: Database["public"]["Enums"]["gender_type"] | null
           hometown?: string | null
           id?: string
           interests?: Json | null
+          last_login_at?: string | null
           last_name?: string | null
           marital_status?: string | null
           onboarding_completed?: boolean
