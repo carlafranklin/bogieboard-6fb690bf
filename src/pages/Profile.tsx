@@ -441,15 +441,14 @@ export default function ProfilePage() {
                 )}
               </div>
               {favoriteCities.length < 3 && (
-                <div className="flex gap-2">
-                  <Input
+                <div className="flex gap-2 items-start">
+                  <CityAutocomplete
                     value={newCity}
-                    onChange={e => setNewCity(e.target.value)}
-                    placeholder="Add a city"
-                    className="max-w-xs h-9 rounded-lg"
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddCity())}
+                    onChange={(val) => setNewCity(val)}
+                    placeholder="Search city to add…"
+                    className="max-w-xs"
                   />
-                  <Button variant="outline" size="sm" onClick={handleAddCity} className="rounded-full h-9 active:scale-95 transition-all">
+                  <Button variant="outline" size="sm" onClick={handleAddCity} className="rounded-full h-10 active:scale-95 transition-all">
                     <Plus className="w-3.5 h-3.5 mr-1" /> Add
                   </Button>
                 </div>
