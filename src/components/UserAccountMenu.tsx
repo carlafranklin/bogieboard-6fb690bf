@@ -77,10 +77,10 @@ export function UserAccountMenu({ userId }: UserAccountMenuProps) {
   const showImage = avatarUrl && !isEmoji && !imgError;
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2.5">
       <Button
         size="sm"
-        onClick={() => navigate('/profile')}
+        onClick={(e) => { e.stopPropagation(); navigate('/profile'); }}
         className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs font-semibold rounded-full px-3.5 h-8 shadow-sm transition-all hover:shadow-md active:scale-95"
       >
         <Settings className="w-3.5 h-3.5 mr-1" />
@@ -90,7 +90,7 @@ export function UserAccountMenu({ userId }: UserAccountMenuProps) {
       <Button
         size="sm"
         variant="destructive"
-        onClick={handleSignOut}
+        onClick={(e) => { e.stopPropagation(); handleSignOut(); }}
         className="text-xs font-semibold rounded-full px-3.5 h-8 shadow-sm transition-all hover:shadow-md active:scale-95"
       >
         <LogOut className="w-3.5 h-3.5 mr-1" />
@@ -100,8 +100,9 @@ export function UserAccountMenu({ userId }: UserAccountMenuProps) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="relative rounded-full ring-2 ring-primary/20 hover:ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all outline-none active:scale-95"
+            className="relative rounded-full ring-2 ring-primary/20 hover:ring-primary/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-all outline-none active:scale-95 z-10"
             aria-label="Account menu"
+            onClick={(e) => e.stopPropagation()}
           >
             <Avatar className="h-8 w-8">
               {showImage ? (
