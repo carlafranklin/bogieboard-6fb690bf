@@ -63,6 +63,7 @@ export default function ProfilePage() {
   const [savedEvents, setSavedEvents] = useState<any[]>([]);
   const [memberSince, setMemberSince] = useState<string>('');
   const [imgError, setImgError] = useState(false);
+  const [detectingCity, setDetectingCity] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
@@ -367,13 +368,43 @@ export default function ProfilePage() {
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <MapPin className="w-3 h-3" /> Current City
                 </Label>
-                <Input value={profile.address || ''} onChange={e => setProfile({ ...profile, address: e.target.value })} placeholder="Auto-detected or enter manually" className="h-10 rounded-lg" />
+                <div className="flex gap-2 items-start">
+                  <CityAutocomplete
+                    value={profile.address || ''}
+                    onChange={(val) => setProfile({ ...profile, address: val })}
+                    placeholder="Search city or zip…"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 rounded-lg shrink-0 text-xs"
+                    disabled={detectingCity}
+                    onClick={async () => {
+                      setDetectingCity(true);
+                      const loc = await detectUserLocation();
+                      setDetectingCity(false);
+                      if (loc.display) {
+                        setProfile({ ...profile, address: loc.display });
+                      }
+                    }}
+                  >
+                    {detectingCity ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                  </Button>
+                </div>
+                {!profile.address && !detectingCity && (
+                  <p className="text-xs text-muted-foreground/60 italic mt-1">Type a city or zip, or click the pin to auto-detect.</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Home className="w-3 h-3" /> Hometown
                 </Label>
-                <Input value={profile.hometown || ''} onChange={e => setProfile({ ...profile, hometown: e.target.value })} placeholder="Where are you from?" className="h-10 rounded-lg" />
+                <CityAutocomplete
+                  value={profile.hometown || ''}
+                  onChange={(val) => setProfile({ ...profile, hometown: val })}
+                  placeholder="Where are you from?"
+                />
                 {!profile.hometown && (
                   <p className="text-xs text-muted-foreground/60 italic mt-1">Tell us where you're from to get local recommendations.</p>
                 )}
