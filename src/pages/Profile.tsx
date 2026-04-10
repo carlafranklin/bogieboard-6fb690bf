@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   User, Save, Plus, Trash2, Camera, MapPin, Home, Star, Upload,
-  Heart, ChevronRight, Check, X, Sparkles, Calendar, ImageIcon
+  Heart, ChevronRight, Check, X, Sparkles, Calendar, ImageIcon, Loader2
 } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { CityAutocomplete } from '@/components/CityAutocomplete';
+import { detectUserLocation } from '@/lib/locationUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
