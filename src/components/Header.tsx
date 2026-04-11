@@ -113,9 +113,6 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {isLoggedIn && userId ? (
               <>
-                <Link to="/events" className="text-sm font-medium text-white hover:text-white/80 transition-colors mr-2">
-                  Events
-                </Link>
                 {isAdmin && (
                   <Link to="/admin">
                     <Button variant="outline" size="sm">
@@ -176,7 +173,6 @@ export function Header() {
                       <Search className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  <Link to="/events" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Events</Link>
                   {isAdmin && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
