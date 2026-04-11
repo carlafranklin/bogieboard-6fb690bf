@@ -28,16 +28,60 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
     const fetchNearby = async () => {
       setLoading(true);
 
-      // Get user's profile address to determine metro area
+      // Get user's profile to determine metro area via structured fields
       const { data: profile } = await supabase
         .from('profiles')
-        .select('address')
+        .select('current_city, current_state, current_zip, detected_city, detected_state, detected_zip, address')
         .eq('user_id', userId)
         .single();
 
-      // Try to match metro area from profile address
       let metroSlug: string | null = null;
-      if (profile?.address) {
+
+      // 1. Try city_lookup with structured profile fields
+      const city = profile?.current_city || profile?.detected_city;
+      const state = profile?.current_state || profile?.detected_state;
+      const zip = profile?.current_zip || profile?.detected_zip;
+
+      if (city && state) {
+        const { data: lookup } = await supabase
+          .from('city_lookup')
+          .select('metro_area_id')
+          .eq('city_name', city)
+          .eq('state_code', state)
+          .limit(1)
+          .maybeSingle();
+
+        if (lookup?.metro_area_id) {
+          const { data: metro } = await supabase
+            .from('metro_areas')
+            .select('slug, name')
+            .eq('id', lookup.metro_area_id)
+            .single();
+          if (metro) { metroSlug = metro.slug; setMetroName(metro.name); }
+        }
+      }
+
+      // 2. Fallback: try zip
+      if (!metroSlug && zip) {
+        const { data: lookup } = await supabase
+          .from('city_lookup')
+          .select('metro_area_id')
+          .eq('zip_code', zip)
+          .limit(1)
+          .maybeSingle();
+
+        if (lookup?.metro_area_id) {
+          const { data: metro } = await supabase
+            .from('metro_areas')
+            .select('slug, name')
+            .eq('id', lookup.metro_area_id)
+            .single();
+          if (metro) { metroSlug = metro.slug; setMetroName(metro.name); }
+        }
+      }
+
+      // 3. Legacy fallback: fuzzy match on address field
+      if (!metroSlug && profile?.address) {
         const { data: metros } = await supabase.from('metro_areas').select('*');
         if (metros) {
           const addressLower = profile.address.toLowerCase();
