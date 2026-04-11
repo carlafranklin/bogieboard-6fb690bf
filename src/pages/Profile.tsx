@@ -126,24 +126,82 @@ export default function ProfilePage() {
   const handleSaveProfile = async () => {
     if (!userId) return;
     setSaving(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        first_name: profile.first_name || null,
-        last_name: profile.last_name || null,
-        phone: profile.phone || null,
-        address: profile.address || null,
-        date_of_birth: profile.date_of_birth || null,
-        gender: profile.gender || null,
-        marital_status: profile.marital_status || null,
-        hometown: profile.hometown || null,
-        favorite_cities: favoriteCities as unknown as Json,
-        interests: interests as unknown as Json,
-      } as any)
-      .eq('user_id', userId);
-    setSaving(false);
-    if (error) toast.error('Error saving profile', { description: getSafeErrorMessage(error) });
-    else toast.success('Profile saved!');
+
+    const payload = {
+      user_id: userId,
+      first_name: profile.first_name || null,
+      last_name: profile.last_name || null,
+      phone: profile.phone || null,
+      address: profile.address || null,
+      date_of_birth: profile.date_of_birth || null,
+      gender: profile.gender || null,
+      marital_status: profile.marital_status || null,
+      hometown: profile.hometown || null,
+      favorite_cities: favoriteCities as unknown as Json,
+      interests: interests as unknown as Json,
+    };
+
+    console.log('[Profile Save] userId:', userId);
+    console.log('[Profile Save] payload:', JSON.stringify(payload, null, 2));
+
+    try {
+      // Try update first
+      const { data: updateData, error: updateError, count } = await supabase
+        .from('profiles')
+        .update(payload as any)
+        .eq('user_id', userId)
+        .select();
+
+      console.log('[Profile Save] update result:', { data: updateData, error: updateError, count });
+
+      if (updateError) {
+        console.error('[Profile Save] Update error details:', {
+          message: updateError.message,
+          code: updateError.code,
+          details: (updateError as any).details,
+          hint: (updateError as any).hint,
+        });
+        throw updateError;
+      }
+
+      // If update matched 0 rows, profile row may not exist — insert it
+      if (!updateData || updateData.length === 0) {
+        console.warn('[Profile Save] Update matched 0 rows, attempting insert...');
+        const { data: insertData, error: insertError } = await supabase
+          .from('profiles')
+          .insert({ ...payload, email: profile.email || null } as any)
+          .select();
+
+        console.log('[Profile Save] insert result:', { data: insertData, error: insertError });
+
+        if (insertError) {
+          console.error('[Profile Save] Insert error details:', {
+            message: insertError.message,
+            code: insertError.code,
+            details: (insertError as any).details,
+            hint: (insertError as any).hint,
+          });
+          // If insert fails because row exists (unique violation), try update again
+          if (insertError.code === '23505') {
+            console.log('[Profile Save] Row exists, retrying update...');
+            const { error: retryError } = await supabase
+              .from('profiles')
+              .update(payload as any)
+              .eq('user_id', userId);
+            if (retryError) throw retryError;
+          } else {
+            throw insertError;
+          }
+        }
+      }
+
+      setSaving(false);
+      toast.success('Profile saved!');
+    } catch (err: any) {
+      console.error('[Profile Save] Final error:', err);
+      setSaving(false);
+      toast.error('Error saving profile', { description: getSafeErrorMessage(err) });
+    }
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
