@@ -26,23 +26,31 @@ export function Header() {
   const [searchLocation, setSearchLocation] = useState('');
 
   useEffect(() => {
-    const checkRoles = async (uid: string) => {
-      const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
-      setIsAdmin(data?.some(r => r.role === 'admin') || false);
-      setIsPartner(data?.some(r => r.role === 'partner') || false);
+    const loadRoles = (uid: string) => {
+      // Fire-and-forget: never await inside onAuthStateChange to avoid deadlocking the auth client
+      supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }).then(({ data }) => {
+        console.log('[Header] has_role admin for', uid, ':', data);
+        setIsAdmin(data === true);
+      }).catch(() => setIsAdmin(false));
+
+      supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }).then(({ data }) => {
+        console.log('[Header] has_role partner for', uid, ':', data);
+        setIsPartner(data === true);
+      }).catch(() => setIsPartner(false));
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
+    // Non-async callback prevents auth client deadlock
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setIsLoggedIn(!!session);
       setUserId(session?.user?.id || null);
-      if (session) checkRoles(session.user.id);
+      if (session) loadRoles(session.user.id);
       else { setIsAdmin(false); setIsPartner(false); }
     });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setIsLoggedIn(!!session);
       setUserId(session?.user?.id || null);
-      if (session) checkRoles(session.user.id);
+      if (session) loadRoles(session.user.id);
     });
 
     return () => subscription.unsubscribe();
