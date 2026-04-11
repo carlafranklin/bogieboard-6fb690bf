@@ -11,6 +11,7 @@ import { EventDetailModal } from '@/components/EventDetailModal';
 import { SearchParams } from '@/components/SearchModule';
 import { supabase } from '@/integrations/supabase/client';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
+import { syncProfileOnLogin } from '@/lib/profileSync';
 
 const Index = () => {
   const navigate = useNavigate();
