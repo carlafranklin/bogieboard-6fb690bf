@@ -214,7 +214,7 @@ export default function ProfilePage() {
 
   const handleRemovePhoto = async () => {
     if (!userId) return;
-    await supabase.from('profiles').update({ custom_avatar_url: null, selected_avatar_id: null }).eq('user_id', userId);
+    await supabase.from('profiles').upsert({ user_id: userId, custom_avatar_url: null, selected_avatar_id: null } as any, { onConflict: 'user_id' });
     setProfile(prev => ({ ...prev, custom_avatar_url: null, selected_avatar_id: null }));
     setImgError(false);
     toast.success('Photo removed');
@@ -222,7 +222,7 @@ export default function ProfilePage() {
 
   const handleSelectAvatar = async (avatar: AvatarRow) => {
     if (!userId) return;
-    await supabase.from('profiles').update({ selected_avatar_id: avatar.id, custom_avatar_url: null }).eq('user_id', userId);
+    await supabase.from('profiles').upsert({ user_id: userId, selected_avatar_id: avatar.id, custom_avatar_url: null } as any, { onConflict: 'user_id' });
     setProfile(prev => ({ ...prev, selected_avatar_id: avatar.id, custom_avatar_url: null }));
     setImgError(false);
     setShowAvatarGallery(false);
