@@ -204,7 +204,9 @@ export function FeaturedEventsNearYou({ userId, isSaved, onToggleSave, savingLoa
                 )}
                 <div className="absolute bottom-3 right-3 z-20">
                   <SaveEventButton
+                    eventId={event.event_id}
                     isSaved={isSaved(event.event_id)}
+                    isLoggedIn={true}
                     onToggle={() => onToggleSave(event.event_id)}
                     loading={savingLoading}
                     size="sm"
