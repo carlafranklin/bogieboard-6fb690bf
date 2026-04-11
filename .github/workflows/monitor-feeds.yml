@@ -16,4 +16,4 @@ jobs:
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -d '{"send_email": true}' \
-            "https://wxmewdwqeeejoetwyiem.supabase.co/functions/v1/monitor-feeds"
+            "${{ secrets.SUPABASE_URL }}/functions/v1/monitor-feeds"

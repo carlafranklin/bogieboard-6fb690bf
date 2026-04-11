@@ -22,4 +22,4 @@ jobs:
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -d '{"dry_run": ${{ inputs.dry_run || false }}}' \
-            "https://wxmewdwqeeejoetwyiem.supabase.co/functions/v1/ingest-feeds"
+            "${{ secrets.SUPABASE_URL }}/functions/v1/ingest-feeds"

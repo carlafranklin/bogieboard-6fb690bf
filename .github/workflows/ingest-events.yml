@@ -15,4 +15,4 @@ jobs:
             -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "https://wxmewdwqeeejoetwyiem.supabase.co/functions/v1/ingest-events"
+            "${{ secrets.SUPABASE_URL }}/functions/v1/ingest-events"
