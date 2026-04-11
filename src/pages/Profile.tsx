@@ -211,18 +211,28 @@ export default function ProfilePage() {
     setImgError(false);
     const ext = file.name.split('.').pop();
     const path = `${userId}/profile.${ext}`;
+    console.log('[Photo Upload] Starting upload:', { path, fileSize: file.size, fileType: file.type });
+
     const { error: uploadError } = await supabase.storage.from('profile-photos').upload(path, file, { upsert: true });
     if (uploadError) {
+      console.error('[Photo Upload] Storage error:', uploadError);
       toast.error('Upload failed', { description: getSafeErrorMessage(uploadError) });
       setUploading(false);
       return;
     }
     const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(path);
     const url = `${publicUrl}?t=${Date.now()}`;
-    await supabase.from('profiles').update({ custom_avatar_url: url, selected_avatar_id: null }).eq('user_id', userId);
+    console.log('[Photo Upload] Public URL:', url);
+
+    const { error: updateError } = await supabase.from('profiles').update({ custom_avatar_url: url, selected_avatar_id: null }).eq('user_id', userId);
+    if (updateError) {
+      console.error('[Photo Upload] Profile update error:', updateError);
+      toast.error('Photo uploaded but profile update failed', { description: getSafeErrorMessage(updateError) });
+    } else {
+      toast.success('Photo updated!');
+    }
     setProfile(prev => ({ ...prev, custom_avatar_url: url, selected_avatar_id: null }));
     setUploading(false);
-    toast.success('Photo updated!');
   };
 
   const handleRemovePhoto = async () => {
