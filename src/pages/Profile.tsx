@@ -146,60 +146,28 @@ export default function ProfilePage() {
       hometown: profile.hometown || null,
       favorite_cities: favoriteCities as unknown as Json,
       interests: interests as unknown as Json,
+      email: profile.email || null,
     };
 
     console.log('[Profile Save] userId:', userId);
     console.log('[Profile Save] payload:', JSON.stringify(payload, null, 2));
 
     try {
-      // Try update first
-      const { data: updateData, error: updateError, count } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .update(payload as any)
-        .eq('user_id', userId)
+        .upsert(payload as any, { onConflict: 'user_id' })
         .select();
 
-      console.log('[Profile Save] update result:', { data: updateData, error: updateError, count });
+      console.log('[Profile Save] upsert result:', { data, error });
 
-      if (updateError) {
-        console.error('[Profile Save] Update error details:', {
-          message: updateError.message,
-          code: updateError.code,
-          details: (updateError as any).details,
-          hint: (updateError as any).hint,
+      if (error) {
+        console.error('[Profile Save] Upsert error:', {
+          message: error.message,
+          code: error.code,
+          details: (error as any).details,
+          hint: (error as any).hint,
         });
-        throw updateError;
-      }
-
-      // If update matched 0 rows, profile row may not exist — insert it
-      if (!updateData || updateData.length === 0) {
-        console.warn('[Profile Save] Update matched 0 rows, attempting insert...');
-        const { data: insertData, error: insertError } = await supabase
-          .from('profiles')
-          .insert({ ...payload, email: profile.email || null } as any)
-          .select();
-
-        console.log('[Profile Save] insert result:', { data: insertData, error: insertError });
-
-        if (insertError) {
-          console.error('[Profile Save] Insert error details:', {
-            message: insertError.message,
-            code: insertError.code,
-            details: (insertError as any).details,
-            hint: (insertError as any).hint,
-          });
-          // If insert fails because row exists (unique violation), try update again
-          if (insertError.code === '23505') {
-            console.log('[Profile Save] Row exists, retrying update...');
-            const { error: retryError } = await supabase
-              .from('profiles')
-              .update(payload as any)
-              .eq('user_id', userId);
-            if (retryError) throw retryError;
-          } else {
-            throw insertError;
-          }
-        }
+        throw error;
       }
 
       setSaving(false);
@@ -231,9 +199,11 @@ export default function ProfilePage() {
     const url = `${publicUrl}?t=${Date.now()}`;
     console.log('[Photo Upload] Public URL:', url);
 
-    const { error: updateError } = await supabase.from('profiles').update({ custom_avatar_url: url, selected_avatar_id: null }).eq('user_id', userId);
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .upsert({ user_id: userId, custom_avatar_url: url, selected_avatar_id: null } as any, { onConflict: 'user_id' });
     if (updateError) {
-      console.error('[Photo Upload] Profile update error:', updateError);
+      console.error('[Photo Upload] Profile upsert error:', updateError);
       toast.error('Photo uploaded but profile update failed', { description: getSafeErrorMessage(updateError) });
     } else {
       toast.success('Photo updated!');
