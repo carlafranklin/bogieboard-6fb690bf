@@ -53,11 +53,13 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
       }
 
       // Use search_events function to get nearby events
-      const { data } = await supabase.rpc('search_events', {
+      const { data, error } = await supabase.rpc('search_events', {
         p_metro_slug: metroSlug,
         p_date_from: new Date().toISOString(),
         p_limit: 12,
       });
+
+      console.log('[NearbyEvents] search_events result:', { metroSlug, count: data?.length, error });
 
       if (data && data.length > 0) {
         // Shuffle for randomness
