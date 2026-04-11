@@ -21,31 +21,69 @@ export function Header() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const navigate = useNavigate();
 
   const [searchLocation, setSearchLocation] = useState('');
 
   useEffect(() => {
-    const checkRoles = async (uid: string) => {
+    let isActive = true;
+
+    const resetRoles = () => {
+      if (!isActive) return;
+      setIsAdmin(false);
+      setIsPartner(false);
+      setRolesLoaded(false);
+    };
+
+    const loadRoles = async (uid: string) => {
+      if (!isActive) return;
+      setRolesLoaded(false);
+
+      const [adminResult, partnerResult] = await Promise.all([
+        supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }),
+        supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }),
+      ]);
+
+      if (!adminResult.error && !partnerResult.error) {
+        if (!isActive) return;
+        setIsAdmin(!!adminResult.data);
+        setIsPartner(!!partnerResult.data);
+        setRolesLoaded(true);
+        return;
+      }
+
       const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
-      setIsAdmin(data?.some(r => r.role === 'admin') || false);
-      setIsPartner(data?.some(r => r.role === 'partner') || false);
+      if (!isActive) return;
+      setIsAdmin(data?.some((role) => role.role === 'admin') || false);
+      setIsPartner(data?.some((role) => role.role === 'partner') || false);
+      setRolesLoaded(true);
+    };
+
+    const syncAuthState = async (session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']) => {
+      if (!isActive) return;
+      setIsLoggedIn(!!session);
+      setUserId(session?.user?.id || null);
+
+      if (session?.user?.id) {
+        await loadRoles(session.user.id);
+      } else {
+        resetRoles();
+      }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
-      setIsLoggedIn(!!session);
-      setUserId(session?.user?.id || null);
-      if (session) checkRoles(session.user.id);
-      else { setIsAdmin(false); setIsPartner(false); }
+      await syncAuthState(session);
     });
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-      setUserId(session?.user?.id || null);
-      if (session) checkRoles(session.user.id);
+      await syncAuthState(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleInlineSearch = () => {
@@ -113,7 +151,7 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {isLoggedIn && userId ? (
               <>
-                {isAdmin && (
+                {rolesLoaded && isAdmin && (
                   <Link to="/admin">
                     <Button variant="outline" size="sm">
                       <Shield className="w-4 h-4 mr-2" />
@@ -121,7 +159,7 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
-                {isPartner && (
+                {rolesLoaded && isPartner && (
                   <Link to="/partner-dashboard">
                     <Button variant="outline" size="sm">
                       <Building2 className="w-4 h-4 mr-2" />
@@ -173,14 +211,14 @@ export function Header() {
                       <Search className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  {isAdmin && (
+                  {rolesLoaded && isAdmin && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Shield className="w-4 h-4 mr-2" />Admin
                       </Button>
                     </Link>
                   )}
-                  {isPartner && (
+                  {rolesLoaded && isPartner && (
                     <Link to="/partner-dashboard" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Building2 className="w-4 h-4 mr-2" />Partner Dashboard
