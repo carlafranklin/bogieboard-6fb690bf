@@ -6,6 +6,7 @@ import { EventShowcase } from '@/components/EventShowcase';
 import { BrowseEvents } from '@/components/BrowseEvents';
 import { NearbyEvents } from '@/components/NearbyEvents';
 import { SavedEventsHistory } from '@/components/SavedEventsHistory';
+import { FeaturedEventsNearYou } from '@/components/FeaturedEventsNearYou';
 import { Footer } from '@/components/Footer';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SearchParams } from '@/components/SearchModule';
@@ -47,7 +48,7 @@ const Index = () => {
       <main className="pt-16">
         {isLoggedIn ? (
           <>
-            {/* Signed-in: app-style dashboard — no hero, no marketing */}
+            {/* Signed-in: app-style dashboard */}
             <NearbyEvents
               userId={userId!}
               isSaved={isSaved}
@@ -55,6 +56,12 @@ const Index = () => {
               savingLoading={savingLoading}
             />
             <SavedEventsHistory userId={userId!} />
+            <FeaturedEventsNearYou
+              userId={userId!}
+              isSaved={isSaved}
+              onToggleSave={(id) => toggleSave(id, 'canonical')}
+              savingLoading={savingLoading}
+            />
           </>
         ) : (
           <>
