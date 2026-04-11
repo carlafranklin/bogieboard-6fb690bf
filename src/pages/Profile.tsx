@@ -94,11 +94,18 @@ export default function ProfilePage() {
         supabase.from('avatars').select('*').eq('is_active', true).order('sort_order'),
         supabase.from('saved_events').select('canonical_event_id, canonical_events(id, title, image_url, start_time)').eq('user_id', userId).order('saved_at', { ascending: false }).limit(10),
       ]);
+
+      console.log('[Profile Fetch] profile:', profileRes.error ? profileRes.error : 'OK');
+      console.log('[Profile Fetch] avatars:', avatarsRes.data?.length ?? 0, 'loaded', avatarsRes.error || '');
+      console.log('[Profile Fetch] saved events:', savedRes.data?.length ?? 0);
+
       if (profileRes.data) {
         setProfile(profileRes.data);
         setFavoriteCities(Array.isArray(profileRes.data.favorite_cities) ? (profileRes.data.favorite_cities as string[]) : []);
         const rawInterests = (profileRes.data as any).interests;
         setInterests(Array.isArray(rawInterests) ? rawInterests : []);
+      } else if (profileRes.error) {
+        console.warn('[Profile Fetch] No profile row found, will create on save. Error:', profileRes.error.message);
       }
       if (avatarsRes.data) setAvatars(avatarsRes.data);
       if (savedRes.data) setSavedEvents(savedRes.data.filter((e: any) => e.canonical_events));
