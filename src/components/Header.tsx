@@ -28,15 +28,15 @@ export function Header() {
   useEffect(() => {
     const loadRoles = (uid: string) => {
       // Fire-and-forget: never await inside onAuthStateChange to avoid deadlocking the auth client
-      supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }).then(({ data }) => {
-        console.log('[Header] has_role admin for', uid, ':', data);
+      supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }).then(({ data, error }) => {
+        console.log('[Header] has_role admin for', uid, ':', data, error);
         setIsAdmin(data === true);
-      }).catch(() => setIsAdmin(false));
+      });
 
-      supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }).then(({ data }) => {
-        console.log('[Header] has_role partner for', uid, ':', data);
+      supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }).then(({ data, error }) => {
+        console.log('[Header] has_role partner for', uid, ':', data, error);
         setIsPartner(data === true);
-      }).catch(() => setIsPartner(false));
+      });
     };
 
     // Non-async callback prevents auth client deadlock
