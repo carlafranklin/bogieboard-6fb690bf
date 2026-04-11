@@ -11,6 +11,7 @@ import { EventDetailModal } from '@/components/EventDetailModal';
 import { SearchParams } from '@/components/SearchModule';
 import { supabase } from '@/integrations/supabase/client';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
+import { syncProfileOnLogin } from '@/lib/profileSync';
 
 const Index = () => {
   const navigate = useNavigate();
@@ -23,10 +24,16 @@ const Index = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id || null);
       setAuthChecked(true);
+      if (session) {
+        syncProfileOnLogin(session.user.id, session.user.email);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUserId(session?.user?.id || null);
       setAuthChecked(true);
+      if (session) {
+        syncProfileOnLogin(session.user.id, session.user.email);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);

@@ -3,11 +3,11 @@ import { motion } from 'framer-motion';
 import { MapPin, Calendar, Clock, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { SaveEventButton } from './SaveEventButton';
 import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
 import type { Tables } from '@/integrations/supabase/types';
+import { mapCityToMetro, findNearestMetro } from '@/lib/locationUtils';
 
 type CanonicalEvent = Tables<'canonical_events'>;
 
@@ -28,16 +28,38 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
     const fetchNearby = async () => {
       setLoading(true);
 
-      // Get user's profile address to determine metro area
-      const { data: profile } = await supabase
+      // 1. Load profile location fields
+      const { data: profile, error: profileErr } = await supabase
         .from('profiles')
-        .select('address')
+        .select('current_city, current_state, detected_city, detected_state, address, hometown')
         .eq('user_id', userId)
         .single();
 
-      // Try to match metro area from profile address
+      console.log('[NearbyEvents] profile:', profile, profileErr);
+
+      // 2. Resolve metro slug via cascading fallback
       let metroSlug: string | null = null;
-      if (profile?.address) {
+      let resolvedMetroName: string | null = null;
+
+      // Try current_city first, then detected_city, then hometown, then address fuzzy
+      const cityAttempts = [
+        profile?.current_city,
+        profile?.detected_city,
+        profile?.hometown,
+      ].filter(Boolean) as string[];
+
+      for (const city of cityAttempts) {
+        const mapping = await mapCityToMetro(city);
+        if (mapping) {
+          metroSlug = mapping.metroSlug;
+          resolvedMetroName = mapping.metroName;
+          console.log('[NearbyEvents] mapped city to metro:', city, '->', metroSlug);
+          break;
+        }
+      }
+
+      // Legacy: try address field fuzzy match against metro core_cities
+      if (!metroSlug && profile?.address) {
         const { data: metros } = await supabase.from('metro_areas').select('*');
         if (metros) {
           const addressLower = profile.address.toLowerCase();
@@ -45,14 +67,23 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
             const cities = metro.core_cities as string[];
             if (cities?.some(c => addressLower.includes(c.toLowerCase()))) {
               metroSlug = metro.slug;
-              setMetroName(metro.name);
+              resolvedMetroName = metro.name;
               break;
             }
           }
         }
       }
 
-      // Use search_events function to get nearby events
+      // Default fallback: raleigh-durham
+      if (!metroSlug) {
+        metroSlug = 'raleigh-durham';
+        resolvedMetroName = 'Raleigh-Durham';
+        console.log('[NearbyEvents] using default fallback metro: raleigh-durham');
+      }
+
+      setMetroName(resolvedMetroName);
+
+      // 3. Fetch events — first try with metro, fall back to all events
       const { data, error } = await supabase.rpc('search_events', {
         p_metro_slug: metroSlug,
         p_date_from: new Date().toISOString(),
@@ -61,9 +92,25 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
 
       console.log('[NearbyEvents] search_events result:', { metroSlug, count: data?.length, error });
 
-      if (data && data.length > 0) {
-        // Shuffle for randomness
-        const shuffled = [...data].sort(() => Math.random() - 0.5);
+      let eventData = data;
+
+      // If metro-specific returned nothing, try without metro filter
+      if ((!eventData || eventData.length === 0) && metroSlug) {
+        console.log('[NearbyEvents] no events for metro, fetching all events');
+        const { data: allData, error: allErr } = await supabase.rpc('search_events', {
+          p_metro_slug: null as any,
+          p_date_from: new Date().toISOString(),
+          p_limit: 12,
+        });
+        console.log('[NearbyEvents] all events result:', { count: allData?.length, error: allErr });
+        eventData = allData;
+        if (eventData && eventData.length > 0) {
+          setMetroName(null); // Clear metro name since showing all
+        }
+      }
+
+      if (eventData && eventData.length > 0) {
+        const shuffled = [...eventData].sort(() => Math.random() - 0.5);
         setEvents(shuffled.map(d => ({
           id: d.event_id,
           title: d.title,
@@ -81,7 +128,6 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
           venue_name: d.venue_name,
           venue_city: d.venue_city,
           category_names: d.category_names,
-          // Fill required fields with defaults
           currency: 'USD',
           created_at: '',
           updated_at: '',
