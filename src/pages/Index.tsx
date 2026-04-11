@@ -24,10 +24,16 @@ const Index = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id || null);
       setAuthChecked(true);
+      if (session) {
+        syncProfileOnLogin(session.user.id, session.user.email);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUserId(session?.user?.id || null);
       setAuthChecked(true);
+      if (session) {
+        syncProfileOnLogin(session.user.id, session.user.email);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
