@@ -151,7 +151,7 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {isLoggedIn && userId ? (
               <>
-                {isAdmin && (
+                {rolesLoaded && isAdmin && (
                   <Link to="/admin">
                     <Button variant="outline" size="sm">
                       <Shield className="w-4 h-4 mr-2" />
@@ -159,7 +159,7 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
-                {isPartner && (
+                {rolesLoaded && isPartner && (
                   <Link to="/partner-dashboard">
                     <Button variant="outline" size="sm">
                       <Building2 className="w-4 h-4 mr-2" />
