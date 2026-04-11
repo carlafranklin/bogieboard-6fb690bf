@@ -133,9 +133,6 @@ export default function ProfilePage() {
         last_name: profile.last_name || null,
         phone: profile.phone || null,
         address: profile.address || null,
-        current_city: profile.current_city || null,
-        current_state: profile.current_state || null,
-        current_zip: profile.current_zip || null,
         date_of_birth: profile.date_of_birth || null,
         gender: profile.gender || null,
         marital_status: profile.marital_status || null,
@@ -373,20 +370,8 @@ export default function ProfilePage() {
                 </Label>
                 <div className="flex gap-2 items-start">
                   <CityAutocomplete
-                    value={profile.current_city && profile.current_state ? `${profile.current_city}, ${profile.current_state}` : (profile.address || '')}
-                    onChange={(val, structured) => {
-                      if (structured) {
-                        setProfile({
-                          ...profile,
-                          address: structured.display_name,
-                          current_city: structured.city_name,
-                          current_state: structured.state_code,
-                          current_zip: structured.zip_code,
-                        });
-                      } else {
-                        setProfile({ ...profile, address: val });
-                      }
-                    }}
+                    value={profile.address || ''}
+                    onChange={(val) => setProfile({ ...profile, address: val })}
                     placeholder="Search city or zip…"
                     className="flex-1"
                   />
@@ -399,21 +384,15 @@ export default function ProfilePage() {
                       setDetectingCity(true);
                       const loc = await detectUserLocation();
                       setDetectingCity(false);
-                      if (loc.city) {
-                        setProfile({
-                          ...profile,
-                          address: loc.display || loc.city,
-                          current_city: loc.city,
-                          current_state: loc.state,
-                          current_zip: loc.zip,
-                        });
+                      if (loc.display) {
+                        setProfile({ ...profile, address: loc.display });
                       }
                     }}
                   >
                     {detectingCity ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
                   </Button>
                 </div>
-                {!profile.address && !profile.current_city && !detectingCity && (
+                {!profile.address && !detectingCity && (
                   <p className="text-xs text-muted-foreground/60 italic mt-1">Type a city or zip, or click the pin to auto-detect.</p>
                 )}
               </div>

@@ -21,74 +21,31 @@ export function Header() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
-  const [rolesLoaded, setRolesLoaded] = useState(false);
   const navigate = useNavigate();
 
   const [searchLocation, setSearchLocation] = useState('');
 
   useEffect(() => {
-    let isActive = true;
-
-    const loadRoles = async (uid: string) => {
-      try {
-        // Try the SECURITY DEFINER RPC first (bypasses RLS)
-        const [adminResult, partnerResult] = await Promise.all([
-          supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }),
-          supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }),
-        ]);
-
-        if (!isActive) return;
-
-        if (!adminResult.error && !partnerResult.error) {
-          setIsAdmin(!!adminResult.data);
-          setIsPartner(!!partnerResult.data);
-          setRolesLoaded(true);
-          return;
-        }
-
-        // Fallback to direct table query
-        const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
-        if (!isActive) return;
-        setIsAdmin(data?.some((r) => r.role === 'admin') || false);
-        setIsPartner(data?.some((r) => r.role === 'partner') || false);
-        setRolesLoaded(true);
-      } catch (err) {
-        console.error('Role check failed:', err);
-        if (isActive) setRolesLoaded(true);
-      }
+    const checkRoles = async (uid: string) => {
+      const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
+      setIsAdmin(data?.some(r => r.role === 'admin') || false);
+      setIsPartner(data?.some(r => r.role === 'partner') || false);
     };
 
-    // IMPORTANT: Do NOT await inside onAuthStateChange — it can deadlock the auth client.
-    // Instead, set synchronous state immediately and fire role loading without blocking.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (!isActive) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
       setIsLoggedIn(!!session);
       setUserId(session?.user?.id || null);
-
-      if (session?.user?.id) {
-        loadRoles(session.user.id); // fire-and-forget — no await
-      } else {
-        setIsAdmin(false);
-        setIsPartner(false);
-        setRolesLoaded(false);
-      }
+      if (session) checkRoles(session.user.id);
+      else { setIsAdmin(false); setIsPartner(false); }
     });
 
-    // Also check on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isActive) return;
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setIsLoggedIn(!!session);
       setUserId(session?.user?.id || null);
-
-      if (session?.user?.id) {
-        loadRoles(session.user.id);
-      }
+      if (session) checkRoles(session.user.id);
     });
 
-    return () => {
-      isActive = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleInlineSearch = () => {
@@ -156,7 +113,10 @@ export function Header() {
           <div className="hidden md:flex items-center gap-2 shrink-0">
             {isLoggedIn && userId ? (
               <>
-                {rolesLoaded && isAdmin && (
+                <Link to="/events" className="text-sm font-medium text-white hover:text-white/80 transition-colors mr-2">
+                  Events
+                </Link>
+                {isAdmin && (
                   <Link to="/admin">
                     <Button variant="outline" size="sm">
                       <Shield className="w-4 h-4 mr-2" />
@@ -164,7 +124,7 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
-                {rolesLoaded && isPartner && (
+                {isPartner && (
                   <Link to="/partner-dashboard">
                     <Button variant="outline" size="sm">
                       <Building2 className="w-4 h-4 mr-2" />
@@ -216,14 +176,15 @@ export function Header() {
                       <Search className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  {rolesLoaded && isAdmin && (
+                  <Link to="/events" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Events</Link>
+                  {isAdmin && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Shield className="w-4 h-4 mr-2" />Admin
                       </Button>
                     </Link>
                   )}
-                  {rolesLoaded && isPartner && (
+                  {isPartner && (
                     <Link to="/partner-dashboard" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Building2 className="w-4 h-4 mr-2" />Partner Dashboard
