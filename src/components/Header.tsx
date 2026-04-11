@@ -21,31 +21,69 @@ export function Header() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
   const navigate = useNavigate();
 
   const [searchLocation, setSearchLocation] = useState('');
 
   useEffect(() => {
-    const checkRoles = async (uid: string) => {
+    let isActive = true;
+
+    const resetRoles = () => {
+      if (!isActive) return;
+      setIsAdmin(false);
+      setIsPartner(false);
+      setRolesLoaded(false);
+    };
+
+    const loadRoles = async (uid: string) => {
+      if (!isActive) return;
+      setRolesLoaded(false);
+
+      const [adminResult, partnerResult] = await Promise.all([
+        supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }),
+        supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }),
+      ]);
+
+      if (!adminResult.error && !partnerResult.error) {
+        if (!isActive) return;
+        setIsAdmin(!!adminResult.data);
+        setIsPartner(!!partnerResult.data);
+        setRolesLoaded(true);
+        return;
+      }
+
       const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
-      setIsAdmin(data?.some(r => r.role === 'admin') || false);
-      setIsPartner(data?.some(r => r.role === 'partner') || false);
+      if (!isActive) return;
+      setIsAdmin(data?.some((role) => role.role === 'admin') || false);
+      setIsPartner(data?.some((role) => role.role === 'partner') || false);
+      setRolesLoaded(true);
+    };
+
+    const syncAuthState = async (session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']) => {
+      if (!isActive) return;
+      setIsLoggedIn(!!session);
+      setUserId(session?.user?.id || null);
+
+      if (session?.user?.id) {
+        await loadRoles(session.user.id);
+      } else {
+        resetRoles();
+      }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
-      setIsLoggedIn(!!session);
-      setUserId(session?.user?.id || null);
-      if (session) checkRoles(session.user.id);
-      else { setIsAdmin(false); setIsPartner(false); }
+      await syncAuthState(session);
     });
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-      setUserId(session?.user?.id || null);
-      if (session) checkRoles(session.user.id);
+      await syncAuthState(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleInlineSearch = () => {
