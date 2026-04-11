@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { detectUserLocation, findNearestMetro, mapCityToMetro, saveDetectedLocation } from '@/lib/locationUtils';
+import { detectUserLocation, findNearestMetro, mapCityToMetro } from '@/lib/locationUtils';
 import { format } from 'date-fns';
 
 interface ProfileData {
@@ -130,27 +130,14 @@ export default function Welcome() {
   }, [navigate]);
 
   const detectAndMapLocation = async (uid: string, profileRow: any) => {
-    // Priority 1: Use existing current_city from profile
-    if (profileRow?.current_city) {
-      const display = profileRow.current_state
-        ? `${profileRow.current_city}, ${profileRow.current_state}`
-        : profileRow.current_city;
-      setDetectedCity(display);
-      loadNearbyEventsForCity(profileRow.current_city, null, null);
-      return;
-    }
-
-    // Priority 2: Use previously detected city
+    // If we already have a detected city from profile, use it to load events
     if (profileRow?.detected_city) {
-      const display = profileRow.detected_state
-        ? `${profileRow.detected_city}, ${profileRow.detected_state}`
-        : profileRow.detected_city;
-      setDetectedCity(display);
-      loadNearbyEventsForCity(profileRow.detected_city, null, null);
+      const cityName = profileRow.detected_city;
+      setDetectedCity(profileRow.detected_state ? `${cityName}, ${profileRow.detected_state}` : cityName);
+      loadNearbyEventsForCity(cityName);
       return;
     }
 
-    // Priority 3: Detect via IP geolocation
     setDetectingLocation(true);
     const loc = await detectUserLocation();
     setDetectingLocation(false);
@@ -158,9 +145,14 @@ export default function Welcome() {
     if (loc.city) {
       setDetectedCity(loc.display);
 
-      // Persist detected location; also set current_city if not already set
-      const hasNoCurrent = !profileRow?.current_city;
-      await saveDetectedLocation(uid, loc, hasNoCurrent);
+      // Persist detected location
+      await supabase.from('profiles').update({
+        detected_city: loc.city,
+        detected_state: loc.state,
+        detected_zip: loc.zip,
+        // Also update current_city if not set
+        ...(profileRow?.address ? {} : { address: loc.display, current_city: loc.city, current_state: loc.state, current_zip: loc.zip }),
+      } as any).eq('user_id', uid);
 
       loadNearbyEventsForCity(loc.city, loc.latitude, loc.longitude);
     }

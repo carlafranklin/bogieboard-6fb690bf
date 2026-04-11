@@ -3,7 +3,7 @@ import { MapPin, Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 
-export interface CityResult {
+interface CityResult {
   id: string;
   city_name: string;
   state_code: string;
@@ -15,21 +15,12 @@ export interface CityResult {
 
 interface CityAutocompleteProps {
   value: string;
-  onChange: (displayValue: string, structured?: CityResult) => void;
+  onChange: (value: string, city?: CityResult) => void;
   placeholder?: string;
   className?: string;
 }
 
-/**
- * Typeahead city/zip autocomplete backed by the city_lookup table.
- * Returns structured data (city_name, state_code, zip) via the onChange callback.
- */
-export function CityAutocomplete({
-  value,
-  onChange,
-  placeholder = 'Search city or zip…',
-  className,
-}: CityAutocompleteProps) {
+export function CityAutocomplete({ value, onChange, placeholder = 'Search city or zip…', className }: CityAutocompleteProps) {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<CityResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -38,7 +29,7 @@ export function CityAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Sync external value changes
+  // Sync external value
   useEffect(() => {
     setQuery(value);
   }, [value]);
@@ -55,39 +46,38 @@ export function CityAutocomplete({
   }, []);
 
   const searchCities = async (searchQuery: string) => {
-    const trimmed = searchQuery.trim();
-    if (trimmed.length < 2) {
+    if (searchQuery.length < 2) {
       setResults([]);
       setIsOpen(false);
       return;
     }
 
     setLoading(true);
-    const isZip = /^\d{2,5}$/.test(trimmed);
+    const isZip = /^\d{2,5}$/.test(searchQuery.trim());
 
-    const column = isZip ? 'zip_code' : 'city_name';
-    const { data, error } = await supabase
-      .from('city_lookup')
-      .select('id, city_name, state_code, display_name, zip_code, latitude, longitude')
-      .ilike(column, `${trimmed}%`)
-      .order('city_name')
-      .limit(12);
+    let query;
+    if (isZip) {
+      query = supabase
+        .from('city_lookup')
+        .select('id, city_name, state_code, display_name, zip_code, latitude, longitude')
+        .ilike('zip_code', `${searchQuery.trim()}%`)
+        .order('city_name')
+        .limit(10);
+    } else {
+      query = supabase
+        .from('city_lookup')
+        .select('id, city_name, state_code, display_name, zip_code, latitude, longitude')
+        .ilike('city_name', `${searchQuery.trim()}%`)
+        .order('city_name')
+        .limit(10);
+    }
 
+    const { data, error } = await query;
     setLoading(false);
 
     if (!error && data) {
-      // Deduplicate by display_name (some cities appear with multiple zips)
-      const seen = new Set<string>();
-      const unique: CityResult[] = [];
-      for (const row of data as CityResult[]) {
-        const key = isZip ? `${row.display_name}-${row.zip_code}` : row.display_name;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push(row);
-        }
-      }
-      setResults(unique);
-      setIsOpen(unique.length > 0);
+      setResults(data as CityResult[]);
+      setIsOpen(data.length > 0);
       setHighlightIndex(-1);
     }
   };
@@ -95,7 +85,8 @@ export function CityAutocomplete({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setQuery(val);
-    // Don't call onChange with raw text — only structured selections count
+    onChange(val); // Update parent with raw text
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => searchCities(val), 200);
   };
@@ -107,24 +98,15 @@ export function CityAutocomplete({
     setResults([]);
   };
 
-  const handleBlur = () => {
-    // If user typed something but didn't select from dropdown, notify parent with raw text
-    setTimeout(() => {
-      if (!isOpen && query !== value) {
-        onChange(query);
-      }
-    }, 200);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen || results.length === 0) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightIndex((prev) => (prev < results.length - 1 ? prev + 1 : 0));
+      setHighlightIndex(prev => (prev < results.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlightIndex((prev) => (prev > 0 ? prev - 1 : results.length - 1));
+      setHighlightIndex(prev => (prev > 0 ? prev - 1 : results.length - 1));
     } else if (e.key === 'Enter' && highlightIndex >= 0) {
       e.preventDefault();
       handleSelect(results[highlightIndex]);
@@ -140,10 +122,7 @@ export function CityAutocomplete({
         <Input
           value={query}
           onChange={handleInputChange}
-          onFocus={() => {
-            if (results.length > 0) setIsOpen(true);
-          }}
-          onBlur={handleBlur}
+          onFocus={() => { if (results.length > 0) setIsOpen(true); }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="pl-8 pr-8 h-10 rounded-lg"
@@ -155,10 +134,10 @@ export function CityAutocomplete({
       </div>
 
       {isOpen && results.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full bg-popover border border-border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 max-h-64 overflow-y-auto">
+        <div className="absolute z-50 mt-1 w-full bg-popover border border-border rounded-xl shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {results.map((city, i) => (
             <button
-              key={`${city.id}-${city.zip_code}`}
+              key={city.id}
               onClick={() => handleSelect(city)}
               onMouseEnter={() => setHighlightIndex(i)}
               className={`w-full text-left px-3.5 py-2.5 flex items-center gap-2.5 text-sm transition-colors ${
@@ -168,10 +147,10 @@ export function CityAutocomplete({
               }`}
             >
               <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-              <div className="min-w-0 flex items-center gap-2">
+              <div className="min-w-0">
                 <span className="font-medium">{city.display_name}</span>
                 {city.zip_code && (
-                  <span className="text-xs text-muted-foreground">{city.zip_code}</span>
+                  <span className="text-xs text-muted-foreground ml-2">{city.zip_code}</span>
                 )}
               </div>
             </button>
