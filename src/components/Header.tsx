@@ -29,55 +29,60 @@ export function Header() {
   useEffect(() => {
     let isActive = true;
 
-    const resetRoles = () => {
-      if (!isActive) return;
-      setIsAdmin(false);
-      setIsPartner(false);
-      setRolesLoaded(false);
-    };
-
     const loadRoles = async (uid: string) => {
-      if (!isActive) return;
-      setRolesLoaded(false);
+      try {
+        // Try the SECURITY DEFINER RPC first (bypasses RLS)
+        const [adminResult, partnerResult] = await Promise.all([
+          supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }),
+          supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }),
+        ]);
 
-      const [adminResult, partnerResult] = await Promise.all([
-        supabase.rpc('has_role', { _user_id: uid, _role: 'admin' }),
-        supabase.rpc('has_role', { _user_id: uid, _role: 'partner' }),
-      ]);
-
-      if (!adminResult.error && !partnerResult.error) {
         if (!isActive) return;
-        setIsAdmin(!!adminResult.data);
-        setIsPartner(!!partnerResult.data);
-        setRolesLoaded(true);
-        return;
-      }
 
-      const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
-      if (!isActive) return;
-      setIsAdmin(data?.some((role) => role.role === 'admin') || false);
-      setIsPartner(data?.some((role) => role.role === 'partner') || false);
-      setRolesLoaded(true);
+        if (!adminResult.error && !partnerResult.error) {
+          setIsAdmin(!!adminResult.data);
+          setIsPartner(!!partnerResult.data);
+          setRolesLoaded(true);
+          return;
+        }
+
+        // Fallback to direct table query
+        const { data } = await supabase.from('user_roles').select('role').eq('user_id', uid);
+        if (!isActive) return;
+        setIsAdmin(data?.some((r) => r.role === 'admin') || false);
+        setIsPartner(data?.some((r) => r.role === 'partner') || false);
+        setRolesLoaded(true);
+      } catch (err) {
+        console.error('Role check failed:', err);
+        if (isActive) setRolesLoaded(true);
+      }
     };
 
-    const syncAuthState = async (session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']) => {
+    // IMPORTANT: Do NOT await inside onAuthStateChange — it can deadlock the auth client.
+    // Instead, set synchronous state immediately and fire role loading without blocking.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       if (!isActive) return;
       setIsLoggedIn(!!session);
       setUserId(session?.user?.id || null);
 
       if (session?.user?.id) {
-        await loadRoles(session.user.id);
+        loadRoles(session.user.id); // fire-and-forget — no await
       } else {
-        resetRoles();
+        setIsAdmin(false);
+        setIsPartner(false);
+        setRolesLoaded(false);
       }
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
-      await syncAuthState(session);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      await syncAuthState(session);
+    // Also check on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isActive) return;
+      setIsLoggedIn(!!session);
+      setUserId(session?.user?.id || null);
+
+      if (session?.user?.id) {
+        loadRoles(session.user.id);
+      }
     });
 
     return () => {
