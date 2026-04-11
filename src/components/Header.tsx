@@ -211,14 +211,14 @@ export function Header() {
                       <Search className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  {isAdmin && (
+                  {rolesLoaded && isAdmin && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Shield className="w-4 h-4 mr-2" />Admin
                       </Button>
                     </Link>
                   )}
-                  {isPartner && (
+                  {rolesLoaded && isPartner && (
                     <Link to="/partner-dashboard" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Building2 className="w-4 h-4 mr-2" />Partner Dashboard
