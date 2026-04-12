@@ -5,6 +5,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function errorResponse(step: string, detail: string, status = 500) {
+  console.error(`[ingest-events] FAIL at "${step}": ${detail}`)
+  return new Response(JSON.stringify({ error: detail, step }), {
+    status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 interface NormalizedEvent {
   title: string
   description_short: string | null
@@ -188,7 +195,6 @@ function truncate(val: string | null | undefined, max: number): string | null {
 }
 
 function sanitizeEvent(ev: NormalizedEvent): NormalizedEvent | null {
-  // Required fields
   if (!ev.title || typeof ev.title !== 'string' || ev.title.trim().length === 0) return null
   if (!ev.start_time || typeof ev.start_time !== 'string') return null
   if (!ev.venue_city || typeof ev.venue_city !== 'string') return null
@@ -219,7 +225,6 @@ async function upsertEvents(
   events: NormalizedEvent[],
   sourceId: string,
   metroAreas: any[],
-  runId: string,
 ) {
   let created = 0, updated = 0, skipped = 0, errors = 0
 
@@ -244,17 +249,20 @@ async function upsertEvents(
       // Upsert venue
       let venueId: string | null = null
       if (ev.venue_name && ev.venue_name !== 'TBA' && ev.venue_name !== 'Online') {
-        const { data: existingVenue } = await supabase
+        const { data: existingVenue, error: venueSelectErr } = await supabase
           .from('venues')
           .select('id')
           .eq('name', ev.venue_name)
           .eq('city', ev.venue_city)
           .maybeSingle()
 
-        if (existingVenue) {
+        if (venueSelectErr) {
+          console.error(`[venues select] Failed for "${ev.venue_name}" in "${ev.venue_city}":`, venueSelectErr.message)
+          // Continue without venue
+        } else if (existingVenue) {
           venueId = existingVenue.id
         } else {
-          const { data: newVenue, error: venueErr } = await supabase
+          const { data: newVenue, error: venueInsertErr } = await supabase
             .from('venues')
             .insert({
               name: ev.venue_name,
@@ -268,34 +276,48 @@ async function upsertEvents(
             })
             .select('id')
             .single()
-          if (venueErr) {
-            console.error('Venue insert error:', venueErr)
-          } else {
+          if (venueInsertErr) {
+            console.error(`[venues insert] Failed for "${ev.venue_name}":`, venueInsertErr.message)
+          } else if (newVenue?.id) {
             venueId = newVenue.id
+          } else {
+            console.warn(`[venues insert] No id returned for "${ev.venue_name}"`)
           }
         }
       }
 
       // Generate hash for dedup
-      const { data: hash } = await supabase.rpc('generate_event_hash', {
+      const { data: hash, error: hashErr } = await supabase.rpc('generate_event_hash', {
         p_title: ev.title,
         p_start_time: ev.start_time,
         p_city: ev.venue_city,
         p_venue_name: ev.venue_name,
       })
 
+      if (hashErr || !hash) {
+        console.error(`[generate_event_hash] Failed for "${ev.title}":`, hashErr?.message ?? 'returned null')
+        errors++
+        continue
+      }
+
       // Check for existing event by hash
-      const { data: existingEvent } = await supabase
+      const { data: existingEvent, error: existingEventErr } = await supabase
         .from('canonical_events')
         .select('id')
         .eq('normalized_hash', hash)
         .maybeSingle()
 
+      if (existingEventErr) {
+        console.error(`[canonical_events select] Failed for hash "${hash}":`, existingEventErr.message)
+        errors++
+        continue
+      }
+
       let canonicalEventId: string
 
       if (existingEvent) {
         // Update existing
-        await supabase
+        const { error: updateErr } = await supabase
           .from('canonical_events')
           .update({
             description_short: ev.description_short,
@@ -308,6 +330,12 @@ async function upsertEvents(
             last_refreshed_at: new Date().toISOString(),
           })
           .eq('id', existingEvent.id)
+
+        if (updateErr) {
+          console.error(`[canonical_events update] Failed for "${ev.title}":`, updateErr.message)
+          errors++
+          continue
+        }
         canonicalEventId = existingEvent.id
         updated++
       } else {
@@ -336,8 +364,8 @@ async function upsertEvents(
           .select('id')
           .single()
 
-        if (eventErr) {
-          console.error('Event insert error:', eventErr)
+        if (eventErr || !newEvent?.id) {
+          console.error(`[canonical_events insert] Failed for "${ev.title}":`, eventErr?.message ?? 'no id returned')
           errors++
           continue
         }
@@ -345,57 +373,76 @@ async function upsertEvents(
         created++
       }
 
-      // Link categories — map source categories to app categories
+      // Link categories
       if (ev.category_names.length > 0) {
         const mappedSlugs = new Set<string>()
         for (const catName of ev.category_names) {
           if (!catName || catName === 'Undefined') continue
-          
-          // Use DB function to map to app category
-          const { data: appSlug } = await supabase.rpc('map_to_app_category', { p_source_category: catName })
-          if (appSlug) mappedSlugs.add(appSlug)
-          
-          // Also store the original category
+
+          const { data: appSlug, error: mapErr } = await supabase.rpc('map_to_app_category', { p_source_category: catName })
+          if (mapErr) {
+            console.warn(`[map_to_app_category] Failed for "${catName}":`, mapErr.message)
+          } else if (appSlug) {
+            mappedSlugs.add(appSlug)
+          }
+
           const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-          let { data: cat } = await supabase
+          const { data: cat, error: catSelectErr } = await supabase
             .from('categories')
             .select('id')
             .eq('slug', slug)
             .maybeSingle()
 
-          if (!cat) {
-            const { data: newCat } = await supabase
+          if (catSelectErr) {
+            console.warn(`[categories select] Failed for slug "${slug}":`, catSelectErr.message)
+            continue
+          }
+
+          let catId = cat?.id
+          if (!catId) {
+            const { data: newCat, error: catInsertErr } = await supabase
               .from('categories')
               .insert({ name: catName, slug })
               .select('id')
               .single()
-            cat = newCat
+            if (catInsertErr || !newCat?.id) {
+              console.warn(`[categories insert] Failed for "${catName}":`, catInsertErr?.message ?? 'no id')
+              continue
+            }
+            catId = newCat.id
           }
 
-          if (cat) {
-            await supabase
-              .from('event_categories')
-              .upsert({ event_id: canonicalEventId, category_id: cat.id }, { onConflict: 'event_id,category_id' })
+          const { error: ecErr } = await supabase
+            .from('event_categories')
+            .upsert({ event_id: canonicalEventId, category_id: catId }, { onConflict: 'event_id,category_id' })
+          if (ecErr) {
+            console.warn(`[event_categories upsert] Failed for event ${canonicalEventId}, cat ${catId}:`, ecErr.message)
           }
         }
-        
-        // Link mapped app categories
+
         for (const appSlug of mappedSlugs) {
-          const { data: appCat } = await supabase
+          const { data: appCat, error: appCatErr } = await supabase
             .from('categories')
             .select('id')
             .eq('slug', appSlug)
             .maybeSingle()
-          if (appCat) {
-            await supabase
+          if (appCatErr) {
+            console.warn(`[categories select app] Failed for slug "${appSlug}":`, appCatErr.message)
+            continue
+          }
+          if (appCat?.id) {
+            const { error: ecErr } = await supabase
               .from('event_categories')
               .upsert({ event_id: canonicalEventId, category_id: appCat.id }, { onConflict: 'event_id,category_id' })
+            if (ecErr) {
+              console.warn(`[event_categories upsert app] Failed:`, ecErr.message)
+            }
           }
         }
       }
 
       // Track source event
-      await supabase.from('source_events').insert({
+      const { error: sourceEventErr } = await supabase.from('source_events').insert({
         source_id: sourceId,
         external_event_id: ev.external_event_id,
         source_url: ev.source_url,
@@ -403,6 +450,9 @@ async function upsertEvents(
         parse_status: 'matched',
         normalized_hash: hash,
       })
+      if (sourceEventErr) {
+        console.warn(`[source_events insert] Failed for "${ev.title}":`, sourceEventErr.message)
+      }
     } catch (e) {
       console.error('Error processing event:', ev.title, e)
       errors++
@@ -419,49 +469,63 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY')
     const ebToken = Deno.env.get('EVENTBRITE_PRIVATE_TOKEN')
 
+    if (!supabaseUrl || !supabaseKey) {
+      return errorResponse('env', 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+    }
+
     if (!tmApiKey && !ebToken) {
-      return new Response(JSON.stringify({ error: 'No API keys configured' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return errorResponse('env', 'No API keys configured (TICKETMASTER_API_KEY or EVENTBRITE_PRIVATE_TOKEN)')
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Get metro areas
-    const { data: metroAreas } = await supabase.from('metro_areas').select('*')
-    if (!metroAreas?.length) {
-      return new Response(JSON.stringify({ error: 'No metro areas configured' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const { data: metroAreas, error: metroErr } = await supabase.from('metro_areas').select('*')
+    if (metroErr) {
+      return errorResponse('metro_areas_select', `Query failed: ${metroErr.message}`)
     }
+    if (!metroAreas?.length) {
+      return errorResponse('metro_areas_select', 'No metro areas configured', 400)
+    }
+    console.log(`[ingest-events] Loaded ${metroAreas.length} metro areas`)
 
     // Get or create sources
-    const getOrCreateSource = async (name: string, type: string, baseUrl: string) => {
-      const { data: existing } = await supabase
+    const getOrCreateSource = async (name: string, type: string, baseUrl: string): Promise<string | null> => {
+      const { data: existing, error: selectErr } = await supabase
         .from('sources')
         .select('id')
         .eq('name', name)
         .maybeSingle()
-      if (existing) return existing.id
 
-      const { data: newSource } = await supabase
+      if (selectErr) {
+        console.error(`[getOrCreateSource] Select failed for "${name}":`, selectErr.message)
+        return null
+      }
+      if (existing?.id) return existing.id
+
+      const { data: newSource, error: insertErr } = await supabase
         .from('sources')
         .insert({ name, type, base_url: baseUrl, is_active: true, trust_score: 80 })
         .select('id')
         .single()
-      return newSource?.id
+
+      if (insertErr || !newSource?.id) {
+        console.error(`[getOrCreateSource] Insert failed for "${name}":`, insertErr?.message ?? 'no id returned')
+        return null
+      }
+      return newSource.id
     }
 
     // Geo points for our metros
     const geoPoints = [
-      { lat: 35.2271, lon: -80.8431, radius: 30 },  // Charlotte
-      { lat: 36.0726, lon: -79.7920, radius: 25 },   // Greensboro
-      { lat: 35.7796, lon: -78.6382, radius: 30 },   // Raleigh/Durham
+      { lat: 35.2271, lon: -80.8431, radius: 30 },
+      { lat: 36.0726, lon: -79.7920, radius: 25 },
+      { lat: 35.7796, lon: -78.6382, radius: 30 },
     ]
 
     const results: any[] = []
@@ -469,17 +533,25 @@ Deno.serve(async (req) => {
     // ── Ticketmaster ──
     if (tmApiKey) {
       const sourceId = await getOrCreateSource('Ticketmaster', 'api', 'https://app.ticketmaster.com/discovery/v2')
-      const { data: run } = await supabase.from('ingestion_runs').insert({
+      if (!sourceId) {
+        return errorResponse('getOrCreateSource', 'Failed to get or create Ticketmaster source')
+      }
+
+      const { data: run, error: runErr } = await supabase.from('ingestion_runs').insert({
         source_id: sourceId, status: 'running',
       }).select('id').single()
 
-      console.log('Fetching Ticketmaster events...')
+      if (runErr || !run?.id) {
+        return errorResponse('ingestion_runs_insert', `Failed to create ingestion run: ${runErr?.message ?? 'no id returned'}`)
+      }
+
+      console.log(`[ingest-events] Fetching Ticketmaster events (run ${run.id})...`)
       const tmEvents = await fetchTicketmaster(tmApiKey, geoPoints)
-      console.log(`Ticketmaster: ${tmEvents.length} events fetched`)
+      console.log(`[ingest-events] Ticketmaster: ${tmEvents.length} events fetched`)
 
-      const stats = await upsertEvents(supabase, tmEvents, sourceId, metroAreas, run.id)
+      const stats = await upsertEvents(supabase, tmEvents, sourceId, metroAreas)
 
-      await supabase.from('ingestion_runs').update({
+      const { error: updateRunErr } = await supabase.from('ingestion_runs').update({
         status: 'completed',
         ended_at: new Date().toISOString(),
         records_fetched: tmEvents.length,
@@ -489,26 +561,38 @@ Deno.serve(async (req) => {
         errors_count: stats.errors,
       }).eq('id', run.id)
 
+      if (updateRunErr) {
+        console.error(`[ingestion_runs update] Failed for run ${run.id}:`, updateRunErr.message)
+      }
+
       results.push({ source: 'Ticketmaster', ...stats, total_fetched: tmEvents.length })
     }
 
     // ── Eventbrite ──
     if (ebToken) {
       const sourceId = await getOrCreateSource('Eventbrite', 'api', 'https://www.eventbriteapi.com/v3')
-      const { data: run } = await supabase.from('ingestion_runs').insert({
+      if (!sourceId) {
+        return errorResponse('getOrCreateSource', 'Failed to get or create Eventbrite source')
+      }
+
+      const { data: run, error: runErr } = await supabase.from('ingestion_runs').insert({
         source_id: sourceId, status: 'running',
       }).select('id').single()
 
-      console.log('Fetching Eventbrite events...')
+      if (runErr || !run?.id) {
+        return errorResponse('ingestion_runs_insert', `Failed to create Eventbrite ingestion run: ${runErr?.message ?? 'no id returned'}`)
+      }
+
+      console.log(`[ingest-events] Fetching Eventbrite events (run ${run.id})...`)
       const ebLocations = geoPoints.map(g => ({
         lat: String(g.lat), lon: String(g.lon), within: `${g.radius}mi`,
       }))
       const ebEvents = await fetchEventbrite(ebToken, ebLocations)
-      console.log(`Eventbrite: ${ebEvents.length} events fetched`)
+      console.log(`[ingest-events] Eventbrite: ${ebEvents.length} events fetched`)
 
-      const stats = await upsertEvents(supabase, ebEvents, sourceId, metroAreas, run.id)
+      const stats = await upsertEvents(supabase, ebEvents, sourceId, metroAreas)
 
-      await supabase.from('ingestion_runs').update({
+      const { error: updateRunErr } = await supabase.from('ingestion_runs').update({
         status: 'completed',
         ended_at: new Date().toISOString(),
         records_fetched: ebEvents.length,
@@ -518,15 +602,21 @@ Deno.serve(async (req) => {
         errors_count: stats.errors,
       }).eq('id', run.id)
 
+      if (updateRunErr) {
+        console.error(`[ingestion_runs update] Failed for run ${run.id}:`, updateRunErr.message)
+      }
+
       results.push({ source: 'Eventbrite', ...stats, total_fetched: ebEvents.length })
     }
 
+    console.log(`[ingest-events] Complete. Results:`, JSON.stringify(results))
     return new Response(JSON.stringify({ success: true, results }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    console.error('Ingestion error:', error)
-    return new Response(JSON.stringify({ error: error.message }), {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('[ingest-events] Unhandled error:', msg)
+    return new Response(JSON.stringify({ error: msg, step: 'unhandled' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
