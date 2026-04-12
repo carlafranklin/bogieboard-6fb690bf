@@ -12,6 +12,53 @@ function errorResponse(step: string, detail: string, status = 500) {
   })
 }
 
+// ── Configurable limits ───────────────────────────
+interface IngestConfig {
+  maxMetroAreas: number
+  tmPageLimit: number
+  tmPageSize: number
+  ebPageLimit: number
+  enableTicketmaster: boolean
+  enableEventbrite: boolean
+  safeMode: boolean
+}
+
+const DEFAULT_CONFIG: IngestConfig = {
+  maxMetroAreas: 3,
+  tmPageLimit: 2,
+  tmPageSize: 100,
+  ebPageLimit: 5,
+  enableTicketmaster: true,
+  enableEventbrite: true,
+  safeMode: false,
+}
+
+const SAFE_MODE_CONFIG: Partial<IngestConfig> = {
+  maxMetroAreas: 1,
+  tmPageLimit: 1,
+  tmPageSize: 20,
+  ebPageLimit: 1,
+}
+
+function resolveConfig(body: any): IngestConfig {
+  const safeMode = body?.safeMode === true
+  const base = safeMode ? { ...DEFAULT_CONFIG, ...SAFE_MODE_CONFIG, safeMode: true } : { ...DEFAULT_CONFIG }
+  return {
+    ...base,
+    maxMetroAreas: body?.maxMetroAreas ?? base.maxMetroAreas,
+    tmPageLimit: body?.tmPageLimit ?? base.tmPageLimit,
+    tmPageSize: body?.tmPageSize ?? base.tmPageSize,
+    ebPageLimit: body?.ebPageLimit ?? base.ebPageLimit,
+    enableTicketmaster: body?.enableTicketmaster ?? base.enableTicketmaster,
+    enableEventbrite: body?.enableEventbrite ?? base.enableEventbrite,
+  }
+}
+
+// ── Timing helper ─────────────────────────────────
+function elapsed(start: number): string {
+  return `${(performance.now() - start).toFixed(0)}ms`
+}
+
 interface NormalizedEvent {
   title: string
   description_short: string | null
@@ -38,20 +85,25 @@ interface NormalizedEvent {
 }
 
 // ── Ticketmaster ──────────────────────────────────
-async function fetchTicketmaster(apiKey: string, metroLatLon: { lat: number; lon: number; radius: number }[]): Promise<NormalizedEvent[]> {
+async function fetchTicketmaster(
+  apiKey: string,
+  metroLatLon: { lat: number; lon: number; radius: number }[],
+  config: IngestConfig,
+): Promise<NormalizedEvent[]> {
   const events: NormalizedEvent[] = []
+  const t0 = performance.now()
 
   for (const geo of metroLatLon) {
     let page = 0
     let totalPages = 1
 
-    while (page < totalPages && page < 2) {
+    while (page < totalPages && page < config.tmPageLimit) {
       const url = new URL('https://app.ticketmaster.com/discovery/v2/events.json')
       url.searchParams.set('apikey', apiKey)
       url.searchParams.set('latlong', `${geo.lat},${geo.lon}`)
       url.searchParams.set('radius', String(geo.radius))
       url.searchParams.set('unit', 'miles')
-      url.searchParams.set('size', '100')
+      url.searchParams.set('size', String(config.tmPageSize))
       url.searchParams.set('page', String(page))
       url.searchParams.set('sort', 'date,asc')
       url.searchParams.set('countryCode', 'US')
@@ -107,18 +159,24 @@ async function fetchTicketmaster(apiKey: string, metroLatLon: { lat: number; lon
     }
   }
 
+  console.log(`[timing] Ticketmaster fetch: ${elapsed(t0)}, ${events.length} events`)
   return events
 }
 
 // ── Eventbrite ────────────────────────────────────
-async function fetchEventbrite(token: string, locations: { lat: string; lon: string; within: string }[]): Promise<NormalizedEvent[]> {
+async function fetchEventbrite(
+  token: string,
+  locations: { lat: string; lon: string; within: string }[],
+  config: IngestConfig,
+): Promise<NormalizedEvent[]> {
   const events: NormalizedEvent[] = []
+  const t0 = performance.now()
 
   for (const loc of locations) {
     let page = 1
     let hasMore = true
 
-    while (hasMore && page <= 5) {
+    while (hasMore && page <= config.ebPageLimit) {
       const url = new URL('https://www.eventbriteapi.com/v3/events/search/')
       url.searchParams.set('location.latitude', loc.lat)
       url.searchParams.set('location.longitude', loc.lon)
@@ -175,6 +233,7 @@ async function fetchEventbrite(token: string, locations: { lat: string; lon: str
     }
   }
 
+  console.log(`[timing] Eventbrite fetch: ${elapsed(t0)}, ${events.length} events`)
   return events
 }
 
@@ -219,7 +278,35 @@ function sanitizeEvent(ev: NormalizedEvent): NormalizedEvent | null {
   }
 }
 
-// ── Upsert Logic ──────────────────────────────────
+// ── In-memory caches ──────────────────────────────
+// Venue cache: "name|city" → venueId
+const venueCache = new Map<string, string>()
+
+// Category cache: slug → categoryId
+const categoryCache = new Map<string, string>()
+
+// Seen external IDs this run (dedup before DB)
+const seenExternalIds = new Set<string>()
+
+// Hash cache: hash → existing canonical_event id (or "new" if we just created it)
+const hashCache = new Map<string, string>()
+
+function venueKey(name: string, city: string): string {
+  return `${name.toLowerCase().trim()}|${city.toLowerCase().trim()}`
+}
+
+// Compute hash client-side to avoid RPC round-trip
+function computeHashLocal(title: string, startTime: string, city: string, venueName: string | null): string {
+  // Replicate the DB function: md5(lower(trim(alphanum(title))) || '|' || utcDateTime || '|' || lower(city) || '|' || lower(venue))
+  // We can't do md5 natively in Deno easily, so we use a simple hash approach
+  // Actually we need to match the DB hash exactly, so we still need the RPC for correctness.
+  // Instead, we'll use a local key for dedup and batch the RPC calls.
+  const normalized = title.replace(/[^a-zA-Z0-9 ]/g, '').trim().toLowerCase()
+  const datePart = startTime.substring(0, 16) // YYYY-MM-DDTHH:MM
+  return `${normalized}|${datePart}|${(city || '').trim().toLowerCase()}|${(venueName || '').trim().toLowerCase()}`
+}
+
+// ── Optimized Upsert Logic ────────────────────────
 async function upsertEvents(
   supabase: any,
   events: NormalizedEvent[],
@@ -227,40 +314,92 @@ async function upsertEvents(
   metroAreas: any[],
 ) {
   let created = 0, updated = 0, skipped = 0, errors = 0
+  const t0 = performance.now()
+
+  // Pre-build metro lookup: lowercase city → metro_area_id
+  const metroLookup = new Map<string, string>()
+  for (const metro of metroAreas) {
+    const cities = (metro.core_cities as string[]) || []
+    for (const c of cities) {
+      metroLookup.set(c.toLowerCase(), metro.id)
+    }
+  }
+
+  // Pre-load all categories into cache
+  const tCat = performance.now()
+  const { data: allCats } = await supabase.from('categories').select('id, slug')
+  if (allCats) {
+    for (const cat of allCats) {
+      categoryCache.set(cat.slug, cat.id)
+    }
+  }
+  console.log(`[timing] Category cache loaded: ${elapsed(tCat)} (${categoryCache.size} categories)`)
+
+  // Pre-load existing venues for our metro cities into cache
+  const tVenue = performance.now()
+  const metroCities = Array.from(metroLookup.keys())
+  if (metroCities.length > 0) {
+    // Load venues for relevant cities (case-insensitive via ilike would be expensive, just load all)
+    const { data: existingVenues } = await supabase
+      .from('venues')
+      .select('id, name, city')
+      .limit(2000)
+    if (existingVenues) {
+      for (const v of existingVenues) {
+        if (v.name && v.city) {
+          venueCache.set(venueKey(v.name, v.city), v.id)
+        }
+      }
+    }
+  }
+  console.log(`[timing] Venue cache loaded: ${elapsed(tVenue)} (${venueCache.size} venues)`)
+
+  // Pre-load existing hashes to skip duplicates without per-event queries
+  const tHash = performance.now()
+  const { data: existingHashes } = await supabase
+    .from('canonical_events')
+    .select('id, normalized_hash')
+    .eq('status', 'active')
+    .not('normalized_hash', 'is', null)
+    .limit(5000)
+  if (existingHashes) {
+    for (const h of existingHashes) {
+      if (h.normalized_hash) {
+        hashCache.set(h.normalized_hash, h.id)
+      }
+    }
+  }
+  console.log(`[timing] Hash cache loaded: ${elapsed(tHash)} (${hashCache.size} hashes)`)
+
+  const tProcess = performance.now()
+
+  // Batch arrays for source_events inserts
+  const sourceEventsBatch: any[] = []
 
   for (const rawEv of events) {
     const ev = sanitizeEvent(rawEv)
     if (!ev) {
-      console.warn('Skipping invalid event:', rawEv.title)
       skipped++
       continue
     }
-    try {
-      // Determine metro area from city
-      let metroAreaId: string | null = null
-      for (const metro of metroAreas) {
-        const cities = (metro.core_cities as string[]).map((c: string) => c.toLowerCase())
-        if (cities.includes(ev.venue_city.toLowerCase())) {
-          metroAreaId = metro.id
-          break
-        }
-      }
 
-      // Upsert venue
+    // Dedup by external_event_id within this run
+    if (seenExternalIds.has(ev.external_event_id)) {
+      skipped++
+      continue
+    }
+    seenExternalIds.add(ev.external_event_id)
+
+    try {
+      // Metro area from cache
+      const metroAreaId = metroLookup.get(ev.venue_city.toLowerCase()) ?? null
+
+      // Venue from cache or single DB call
       let venueId: string | null = null
       if (ev.venue_name && ev.venue_name !== 'TBA' && ev.venue_name !== 'Online') {
-        const { data: existingVenue, error: venueSelectErr } = await supabase
-          .from('venues')
-          .select('id')
-          .eq('name', ev.venue_name)
-          .eq('city', ev.venue_city)
-          .maybeSingle()
-
-        if (venueSelectErr) {
-          console.error(`[venues select] Failed for "${ev.venue_name}" in "${ev.venue_city}":`, venueSelectErr.message)
-          // Continue without venue
-        } else if (existingVenue) {
-          venueId = existingVenue.id
+        const vk = venueKey(ev.venue_name, ev.venue_city)
+        if (venueCache.has(vk)) {
+          venueId = venueCache.get(vk)!
         } else {
           const { data: newVenue, error: venueInsertErr } = await supabase
             .from('venues')
@@ -277,16 +416,25 @@ async function upsertEvents(
             .select('id')
             .single()
           if (venueInsertErr) {
-            console.error(`[venues insert] Failed for "${ev.venue_name}":`, venueInsertErr.message)
+            // Might be duplicate — try select
+            const { data: existing } = await supabase
+              .from('venues')
+              .select('id')
+              .eq('name', ev.venue_name)
+              .eq('city', ev.venue_city)
+              .maybeSingle()
+            if (existing?.id) {
+              venueId = existing.id
+              venueCache.set(vk, existing.id)
+            }
           } else if (newVenue?.id) {
             venueId = newVenue.id
-          } else {
-            console.warn(`[venues insert] No id returned for "${ev.venue_name}"`)
+            venueCache.set(vk, newVenue.id)
           }
         }
       }
 
-      // Generate hash for dedup
+      // Generate hash via RPC (required for exact match with DB function)
       const { data: hash, error: hashErr } = await supabase.rpc('generate_event_hash', {
         p_title: ev.title,
         p_start_time: ev.start_time,
@@ -295,51 +443,34 @@ async function upsertEvents(
       })
 
       if (hashErr || !hash) {
-        console.error(`[generate_event_hash] Failed for "${ev.title}":`, hashErr?.message ?? 'returned null')
-        errors++
-        continue
-      }
-
-      // Check for existing event by hash
-      const { data: existingEvent, error: existingEventErr } = await supabase
-        .from('canonical_events')
-        .select('id')
-        .eq('normalized_hash', hash)
-        .maybeSingle()
-
-      if (existingEventErr) {
-        console.error(`[canonical_events select] Failed for hash "${hash}":`, existingEventErr.message)
+        console.error(`[hash] Failed for "${ev.title}":`, hashErr?.message ?? 'null')
         errors++
         continue
       }
 
       let canonicalEventId: string
 
-      if (existingEvent) {
-        // Update existing
+      // Check hash cache first (avoid DB select)
+      if (hashCache.has(hash)) {
+        // Existing event — only update last_seen timestamp (skip expensive field updates
+        // unless data has materially changed, which we can't cheaply detect here)
+        canonicalEventId = hashCache.get(hash)!
         const { error: updateErr } = await supabase
           .from('canonical_events')
           .update({
-            description_short: ev.description_short,
-            end_time: ev.end_time,
-            price_min: ev.price_min,
-            price_max: ev.price_max,
-            ticket_url: ev.ticket_url,
-            image_url: ev.image_url,
             last_seen_at: new Date().toISOString(),
             last_refreshed_at: new Date().toISOString(),
           })
-          .eq('id', existingEvent.id)
+          .eq('id', canonicalEventId)
 
         if (updateErr) {
-          console.error(`[canonical_events update] Failed for "${ev.title}":`, updateErr.message)
+          console.error(`[update] Failed for "${ev.title}":`, updateErr.message)
           errors++
           continue
         }
-        canonicalEventId = existingEvent.id
         updated++
       } else {
-        // Create new
+        // New event — insert
         const { data: newEvent, error: eventErr } = await supabase
           .from('canonical_events')
           .insert({
@@ -365,84 +496,47 @@ async function upsertEvents(
           .single()
 
         if (eventErr || !newEvent?.id) {
-          console.error(`[canonical_events insert] Failed for "${ev.title}":`, eventErr?.message ?? 'no id returned')
+          console.error(`[insert] Failed for "${ev.title}":`, eventErr?.message ?? 'no id')
           errors++
           continue
         }
         canonicalEventId = newEvent.id
+        hashCache.set(hash, canonicalEventId)
         created++
       }
 
-      // Link categories
+      // Link categories using cache (avoid per-event category selects)
       if (ev.category_names.length > 0) {
-        const mappedSlugs = new Set<string>()
         for (const catName of ev.category_names) {
           if (!catName || catName === 'Undefined') continue
 
-          const { data: appSlug, error: mapErr } = await supabase.rpc('map_to_app_category', { p_source_category: catName })
-          if (mapErr) {
-            console.warn(`[map_to_app_category] Failed for "${catName}":`, mapErr.message)
-          } else if (appSlug) {
-            mappedSlugs.add(appSlug)
-          }
-
-          const slug = catName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-          const { data: cat, error: catSelectErr } = await supabase
-            .from('categories')
-            .select('id')
-            .eq('slug', slug)
-            .maybeSingle()
-
-          if (catSelectErr) {
-            console.warn(`[categories select] Failed for slug "${slug}":`, catSelectErr.message)
-            continue
-          }
-
-          let catId = cat?.id
-          if (!catId) {
-            const { data: newCat, error: catInsertErr } = await supabase
-              .from('categories')
-              .insert({ name: catName, slug })
-              .select('id')
-              .single()
-            if (catInsertErr || !newCat?.id) {
-              console.warn(`[categories insert] Failed for "${catName}":`, catInsertErr?.message ?? 'no id')
-              continue
+          // Try map_to_app_category — use cached result if available
+          const mappedKey = `_mapped_${catName.toLowerCase()}`
+          let appSlug: string | null = null
+          if (categoryCache.has(mappedKey)) {
+            appSlug = categoryCache.get(mappedKey) ?? null
+          } else {
+            const { data: slug } = await supabase.rpc('map_to_app_category', { p_source_category: catName })
+            if (slug) {
+              categoryCache.set(mappedKey, slug)
+              appSlug = slug
+            } else {
+              categoryCache.set(mappedKey, '')
             }
-            catId = newCat.id
           }
 
-          const { error: ecErr } = await supabase
-            .from('event_categories')
-            .upsert({ event_id: canonicalEventId, category_id: catId }, { onConflict: 'event_id,category_id' })
-          if (ecErr) {
-            console.warn(`[event_categories upsert] Failed for event ${canonicalEventId}, cat ${catId}:`, ecErr.message)
-          }
-        }
-
-        for (const appSlug of mappedSlugs) {
-          const { data: appCat, error: appCatErr } = await supabase
-            .from('categories')
-            .select('id')
-            .eq('slug', appSlug)
-            .maybeSingle()
-          if (appCatErr) {
-            console.warn(`[categories select app] Failed for slug "${appSlug}":`, appCatErr.message)
-            continue
-          }
-          if (appCat?.id) {
-            const { error: ecErr } = await supabase
+          // Link the mapped app category if it exists in our cache
+          if (appSlug && categoryCache.has(appSlug)) {
+            const catId = categoryCache.get(appSlug)!
+            await supabase
               .from('event_categories')
-              .upsert({ event_id: canonicalEventId, category_id: appCat.id }, { onConflict: 'event_id,category_id' })
-            if (ecErr) {
-              console.warn(`[event_categories upsert app] Failed:`, ecErr.message)
-            }
+              .upsert({ event_id: canonicalEventId, category_id: catId }, { onConflict: 'event_id,category_id' })
           }
         }
       }
 
-      // Track source event
-      const { error: sourceEventErr } = await supabase.from('source_events').insert({
+      // Batch source_events insert
+      sourceEventsBatch.push({
         source_id: sourceId,
         external_event_id: ev.external_event_id,
         source_url: ev.source_url,
@@ -450,14 +544,27 @@ async function upsertEvents(
         parse_status: 'matched',
         normalized_hash: hash,
       })
-      if (sourceEventErr) {
-        console.warn(`[source_events insert] Failed for "${ev.title}":`, sourceEventErr.message)
-      }
     } catch (e) {
       console.error('Error processing event:', ev.title, e)
       errors++
     }
   }
+
+  // Batch insert source_events
+  const tSource = performance.now()
+  if (sourceEventsBatch.length > 0) {
+    // Insert in chunks of 50
+    for (let i = 0; i < sourceEventsBatch.length; i += 50) {
+      const chunk = sourceEventsBatch.slice(i, i + 50)
+      const { error: batchErr } = await supabase.from('source_events').insert(chunk)
+      if (batchErr) {
+        console.warn(`[source_events batch] Failed chunk ${i}:`, batchErr.message)
+      }
+    }
+  }
+  console.log(`[timing] Source events batch insert: ${elapsed(tSource)} (${sourceEventsBatch.length} records)`)
+
+  console.log(`[timing] Event processing: ${elapsed(tProcess)} (${events.length} events → ${created} created, ${updated} updated, ${skipped} skipped, ${errors} errors)`)
 
   return { created, updated, skipped, errors }
 }
@@ -468,7 +575,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  const tTotal = performance.now()
+
   try {
+    let body: any = {}
+    try { body = await req.json() } catch { /* empty body is fine */ }
+
+    const config = resolveConfig(body)
+    console.log(`[ingest-events] Config:`, JSON.stringify(config))
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     const tmApiKey = Deno.env.get('TICKETMASTER_API_KEY')
@@ -484,18 +599,36 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Get metro areas
-    const { data: metroAreas, error: metroErr } = await supabase.from('metro_areas').select('*')
+    // Get metro areas (limited)
+    const { data: metroAreas, error: metroErr } = await supabase
+      .from('metro_areas')
+      .select('*')
+      .limit(config.maxMetroAreas)
     if (metroErr) {
       return errorResponse('metro_areas_select', `Query failed: ${metroErr.message}`)
     }
     if (!metroAreas?.length) {
       return errorResponse('metro_areas_select', 'No metro areas configured', 400)
     }
-    console.log(`[ingest-events] Loaded ${metroAreas.length} metro areas`)
+    console.log(`[ingest-events] Loaded ${metroAreas.length} metro areas (limit: ${config.maxMetroAreas})`)
 
-    // Get or create sources
+    // Build geo points from metro areas (use their lat/lon, fallback to hardcoded)
+    const geoPoints = metroAreas
+      .filter((m: any) => m.latitude && m.longitude)
+      .map((m: any) => ({ lat: m.latitude, lon: m.longitude, radius: 30 }))
+
+    if (geoPoints.length === 0) {
+      // Fallback to first hardcoded point only
+      geoPoints.push({ lat: 35.7796, lon: -78.6382, radius: 30 })
+    }
+
+    // Limit geo points to config
+    const limitedGeoPoints = geoPoints.slice(0, config.maxMetroAreas)
+
+    // Get or create source (cached per invocation)
+    const sourceCache = new Map<string, string>()
     const getOrCreateSource = async (name: string, type: string, baseUrl: string): Promise<string | null> => {
+      if (sourceCache.has(name)) return sourceCache.get(name)!
       const { data: existing, error: selectErr } = await supabase
         .from('sources')
         .select('id')
@@ -506,7 +639,10 @@ Deno.serve(async (req) => {
         console.error(`[getOrCreateSource] Select failed for "${name}":`, selectErr.message)
         return null
       }
-      if (existing?.id) return existing.id
+      if (existing?.id) {
+        sourceCache.set(name, existing.id)
+        return existing.id
+      }
 
       const { data: newSource, error: insertErr } = await supabase
         .from('sources')
@@ -518,20 +654,14 @@ Deno.serve(async (req) => {
         console.error(`[getOrCreateSource] Insert failed for "${name}":`, insertErr?.message ?? 'no id returned')
         return null
       }
+      sourceCache.set(name, newSource.id)
       return newSource.id
     }
-
-    // Geo points for our metros
-    const geoPoints = [
-      { lat: 35.2271, lon: -80.8431, radius: 30 },
-      { lat: 36.0726, lon: -79.7920, radius: 25 },
-      { lat: 35.7796, lon: -78.6382, radius: 30 },
-    ]
 
     const results: any[] = []
 
     // ── Ticketmaster ──
-    if (tmApiKey) {
+    if (config.enableTicketmaster && tmApiKey) {
       const sourceId = await getOrCreateSource('Ticketmaster', 'api', 'https://app.ticketmaster.com/discovery/v2')
       if (!sourceId) {
         return errorResponse('getOrCreateSource', 'Failed to get or create Ticketmaster source')
@@ -545,13 +675,12 @@ Deno.serve(async (req) => {
         return errorResponse('ingestion_runs_insert', `Failed to create ingestion run: ${runErr?.message ?? 'no id returned'}`)
       }
 
-      console.log(`[ingest-events] Fetching Ticketmaster events (run ${run.id})...`)
-      const tmEvents = await fetchTicketmaster(tmApiKey, geoPoints)
-      console.log(`[ingest-events] Ticketmaster: ${tmEvents.length} events fetched`)
+      const tmEvents = await fetchTicketmaster(tmApiKey, limitedGeoPoints, config)
+      console.log(`[ingest-events] Ticketmaster: ${tmEvents.length} events fetched from ${limitedGeoPoints.length} geo points`)
 
       const stats = await upsertEvents(supabase, tmEvents, sourceId, metroAreas)
 
-      const { error: updateRunErr } = await supabase.from('ingestion_runs').update({
+      await supabase.from('ingestion_runs').update({
         status: 'completed',
         ended_at: new Date().toISOString(),
         records_fetched: tmEvents.length,
@@ -561,15 +690,11 @@ Deno.serve(async (req) => {
         errors_count: stats.errors,
       }).eq('id', run.id)
 
-      if (updateRunErr) {
-        console.error(`[ingestion_runs update] Failed for run ${run.id}:`, updateRunErr.message)
-      }
-
       results.push({ source: 'Ticketmaster', ...stats, total_fetched: tmEvents.length })
     }
 
     // ── Eventbrite ──
-    if (ebToken) {
+    if (config.enableEventbrite && ebToken) {
       const sourceId = await getOrCreateSource('Eventbrite', 'api', 'https://www.eventbriteapi.com/v3')
       if (!sourceId) {
         return errorResponse('getOrCreateSource', 'Failed to get or create Eventbrite source')
@@ -583,16 +708,15 @@ Deno.serve(async (req) => {
         return errorResponse('ingestion_runs_insert', `Failed to create Eventbrite ingestion run: ${runErr?.message ?? 'no id returned'}`)
       }
 
-      console.log(`[ingest-events] Fetching Eventbrite events (run ${run.id})...`)
-      const ebLocations = geoPoints.map(g => ({
+      const ebLocations = limitedGeoPoints.map(g => ({
         lat: String(g.lat), lon: String(g.lon), within: `${g.radius}mi`,
       }))
-      const ebEvents = await fetchEventbrite(ebToken, ebLocations)
+      const ebEvents = await fetchEventbrite(ebToken, ebLocations, config)
       console.log(`[ingest-events] Eventbrite: ${ebEvents.length} events fetched`)
 
       const stats = await upsertEvents(supabase, ebEvents, sourceId, metroAreas)
 
-      const { error: updateRunErr } = await supabase.from('ingestion_runs').update({
+      await supabase.from('ingestion_runs').update({
         status: 'completed',
         ended_at: new Date().toISOString(),
         records_fetched: ebEvents.length,
@@ -602,20 +726,17 @@ Deno.serve(async (req) => {
         errors_count: stats.errors,
       }).eq('id', run.id)
 
-      if (updateRunErr) {
-        console.error(`[ingestion_runs update] Failed for run ${run.id}:`, updateRunErr.message)
-      }
-
       results.push({ source: 'Eventbrite', ...stats, total_fetched: ebEvents.length })
     }
 
+    console.log(`[timing] Total ingest-events: ${elapsed(tTotal)}`)
     console.log(`[ingest-events] Complete. Results:`, JSON.stringify(results))
-    return new Response(JSON.stringify({ success: true, results }), {
+    return new Response(JSON.stringify({ success: true, config, results, totalTime: elapsed(tTotal) }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    console.error('[ingest-events] Unhandled error:', msg)
+    console.error(`[ingest-events] Unhandled error after ${elapsed(tTotal)}:`, msg)
     return new Response(JSON.stringify({ error: msg, step: 'unhandled' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
