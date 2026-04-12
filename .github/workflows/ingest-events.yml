@@ -1,18 +1,30 @@
-name: Ingest Events
+name: Ingest Events (Safe Mode)
 
 on:
   schedule:
     - cron: '0 */6 * * *' # Every 6 hours
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger ingest-events function
+      - name: Trigger ingest-events in safe mode
         run: |
-          curl -s -w "\nHTTP Status: %{http_code}\n" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/functions/v1/ingest-events"
+            -d '{"safeMode": true}' \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/ingest-events")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::ingest-events failed with status $HTTP_CODE"
+            exit 1
+          fi

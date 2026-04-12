@@ -1,0 +1,49 @@
+name: Ingest Events (Full Volume)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_metro_areas:
+        description: 'Max metro areas to process'
+        required: false
+        default: '5'
+        type: string
+      tm_page_limit:
+        description: 'Ticketmaster pages per metro area'
+        required: false
+        default: '3'
+        type: string
+      eb_page_limit:
+        description: 'Eventbrite pages per metro area'
+        required: false
+        default: '2'
+        type: string
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger ingest-events at higher volume
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -d '{
+              "safeMode": false,
+              "maxMetroAreas": ${{ inputs.max_metro_areas }},
+              "tmPageLimit": ${{ inputs.tm_page_limit }},
+              "ebPageLimit": ${{ inputs.eb_page_limit }}
+            }' \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/ingest-events")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::ingest-events failed with status $HTTP_CODE"
+            exit 1
+          fi
