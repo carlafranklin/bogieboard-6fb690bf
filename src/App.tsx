@@ -19,6 +19,7 @@ import CookiePolicy from "./pages/CookiePolicy";
 import ResetPassword from "./pages/ResetPassword";
 import AuthCallback from "./pages/AuthCallback";
 import { CookieConsent } from "./components/CookieConsent";
+import { EnvBadge } from "./components/EnvBadge";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
         <CookieConsent />
+        <EnvBadge />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
