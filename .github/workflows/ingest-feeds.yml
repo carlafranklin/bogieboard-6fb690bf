@@ -5,6 +5,14 @@ on:
     - cron: '30 */6 * * *' # Every 6 hours, offset from API ingestion
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment (resolves SUPABASE_URL/SUPABASE_ANON_KEY)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - develop
       dry_run:
         description: 'Dry run mode (no database writes)'
         required: false
@@ -14,6 +22,7 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
     steps:
       - name: Trigger ingest-feeds function
         run: |

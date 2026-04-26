@@ -4,10 +4,20 @@ on:
   schedule:
     - cron: '0 8 */2 * *' # Every 2 days at 8am UTC
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (resolves SUPABASE_URL/SUPABASE_ANON_KEY)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - develop
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
     steps:
       - name: Check feed health
         run: |

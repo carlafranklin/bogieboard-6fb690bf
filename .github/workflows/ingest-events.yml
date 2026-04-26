@@ -4,10 +4,20 @@ on:
   schedule:
     - cron: '0 */6 * * *' # Every 6 hours
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (resolves SUPABASE_URL/SUPABASE_ANON_KEY)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - develop
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
     steps:
       - name: Trigger ingest-events in safe mode
         run: |
