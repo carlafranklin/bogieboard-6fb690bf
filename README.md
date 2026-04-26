@@ -71,3 +71,88 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+---
+
+# BogieBoard Environments & Release Workflow
+
+BogieBoard runs a two-environment release model: **`develop`** for staging
+and **`main`** for production. Lovable commits to `develop`; production
+changes are promoted by PR.
+
+## Environment Matrix
+
+| Environment | Branch    | Domain                 | Backend (Supabase) | `VITE_APP_ENV` | UI badge |
+|-------------|-----------|------------------------|--------------------|----------------|----------|
+| Production  | `main`    | `www.bogieboard.com`   | Production project | `production`   | (none)   |
+| Develop     | `develop` | `dev.bogieboard.com`   | Dev project        | `develop`      | yellow `DEV` |
+| Preview     | n/a       | Lovable preview / `localhost` | whichever `.env` points to | unset → `preview` | gray `PREVIEW` |
+
+The current environment is exposed in code via `src/lib/env.ts`
+(`APP_ENV`, `isProduction()`, `isDevelop()`, `isPreview()`).
+
+## Release Workflow
+
+```text
+Lovable ──► develop ──► Amplify (develop branch) ──► dev.bogieboard.com ──► Supabase Dev
+                                                                              │
+                                                       PR + review + QA       │
+                                                                ▼             │
+                              main ──► Amplify (main branch) ──► www.bogieboard.com ──► Supabase Production
+```
+
+1. Lovable's tracked branch is **`develop`**. All AI/agent commits land there.
+2. `develop` auto-deploys to `dev.bogieboard.com` via AWS Amplify.
+3. Test on `dev.bogieboard.com`. Backend writes go to the Supabase Dev project.
+4. When ready, open a PR from `develop` → `main`.
+5. Merging to `main` auto-deploys to `www.bogieboard.com` against Supabase Production.
+
+`main` is production-stable. Do not commit directly to it.
+
+## GitHub Environments (for Actions secrets)
+
+The data-pipeline workflows under `.github/workflows/` resolve their
+Supabase credentials from **GitHub Environments**, not repo-level secrets.
+
+Create two environments under **Settings → Environments**:
+
+| Environment name | `SUPABASE_URL`                              | `SUPABASE_ANON_KEY`              |
+|------------------|---------------------------------------------|----------------------------------|
+| `production`     | Production project URL                      | Production anon key              |
+| `develop`        | Dev project URL                             | Dev anon key                     |
+
+(Optional) Add required reviewers to the `production` environment if you
+want manual approval before any workflow runs against production.
+
+## Manual Workflow Runs
+
+All six pipeline workflows expose an `environment` input on **Actions →
+Run workflow**:
+
+- `ingest-events.yml`
+- `ingest-events-full.yml`
+- `ingest-feeds.yml`
+- `scrape-events.yml`
+- `cleanup-events.yml`
+- `monitor-feeds.yml`
+
+Pick `production` or `develop`; the job's `environment:` binding
+resolves the matching `SUPABASE_URL` / `SUPABASE_ANON_KEY` secrets.
+Scheduled runs default to `production` (no input → fallback to `production`).
+
+## Amplify Environment Variables (per branch)
+
+Configure in **Amplify Console → App settings → Environment variables**,
+scoped per branch:
+
+| Variable                       | `main` (production)                 | `develop`                          |
+|--------------------------------|-------------------------------------|------------------------------------|
+| `VITE_APP_ENV`                 | `production`                        | `develop`                          |
+| `VITE_SUPABASE_URL`            | Production project URL              | Dev project URL                    |
+| `VITE_SUPABASE_PUBLISHABLE_KEY`| Production publishable/anon key     | Dev publishable/anon key           |
+| `VITE_SUPABASE_PROJECT_ID`     | Production project ref              | Dev project ref                    |
+
+The Lovable-managed files (`src/integrations/supabase/client.ts`,
+`src/integrations/supabase/types.ts`, and the local `.env`) are **not**
+edited as part of this setup. Amplify-injected env vars take effect at
+build time.

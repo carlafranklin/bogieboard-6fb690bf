@@ -3,6 +3,14 @@ name: Ingest Events (Full Volume)
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment (resolves SUPABASE_URL/SUPABASE_ANON_KEY)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - develop
       max_metro_areas:
         description: 'Max metro areas to process'
         required: false
@@ -22,6 +30,7 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
     steps:
       - name: Trigger ingest-events at higher volume
         run: |
