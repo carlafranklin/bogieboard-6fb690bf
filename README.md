@@ -76,22 +76,17 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/c
 
 # BogieBoard Environments & Release Workflow
 
-BogieBoard runs a two-environment release model. Lovable commits to
-**`main`** (logical = staging); a long-lived **`production`** branch is the
-live release. Promotion is a PR from `main` → `production`.
-
-> The branch name `main` and the logical environment name `develop` are
-> intentionally different. Lovable keeps tracking `main` (its default), and
-> Amplify sets `VITE_APP_ENV=develop` on that branch so the app behaves as
-> staging.
+BogieBoard runs a two-environment release model: **`develop`** for staging
+and **`main`** for production. Lovable commits to `develop`; production
+changes are promoted by PR.
 
 ## Environment Matrix
 
-| Environment | Branch       | Domain                        | Backend (Supabase) | `VITE_APP_ENV` | UI badge |
-|-------------|--------------|-------------------------------|--------------------|----------------|----------|
-| Production  | `production` | `www.bogieboard.com`          | Production project | `production`   | (none)   |
-| Develop     | `main`       | `dev.bogieboard.com`          | Dev project        | `develop`      | yellow `DEV` |
-| Preview     | n/a          | Lovable preview / `localhost` | whichever `.env` points to | unset → `preview` | gray `PREVIEW` |
+| Environment | Branch    | Domain                 | Backend (Supabase) | `VITE_APP_ENV` | UI badge |
+|-------------|-----------|------------------------|--------------------|----------------|----------|
+| Production  | `main`    | `www.bogieboard.com`   | Production project | `production`   | (none)   |
+| Develop     | `develop` | `dev.bogieboard.com`   | Dev project        | `develop`      | yellow `DEV` |
+| Preview     | n/a       | Lovable preview / `localhost` | whichever `.env` points to | unset → `preview` | gray `PREVIEW` |
 
 The current environment is exposed in code via `src/lib/env.ts`
 (`APP_ENV`, `isProduction()`, `isDevelop()`, `isPreview()`).
@@ -99,20 +94,20 @@ The current environment is exposed in code via `src/lib/env.ts`
 ## Release Workflow
 
 ```text
-Lovable ──► main ──► Amplify (main branch) ──► dev.bogieboard.com ──► Supabase Dev
-                                                                        │
-                                                PR + review + QA        │
-                                                          ▼             │
-            production ──► Amplify (production branch) ──► www.bogieboard.com ──► Supabase Production
+Lovable ──► develop ──► Amplify (develop branch) ──► dev.bogieboard.com ──► Supabase Dev
+                                                                              │
+                                                       PR + review + QA       │
+                                                                ▼             │
+                              main ──► Amplify (main branch) ──► www.bogieboard.com ──► Supabase Production
 ```
 
-1. Lovable's tracked branch is **`main`**. All AI/agent commits land there.
-2. `main` auto-deploys to `dev.bogieboard.com` via AWS Amplify.
+1. Lovable's tracked branch is **`develop`**. All AI/agent commits land there.
+2. `develop` auto-deploys to `dev.bogieboard.com` via AWS Amplify.
 3. Test on `dev.bogieboard.com`. Backend writes go to the Supabase Dev project.
-4. When ready, open a PR from `main` → `production`.
-5. Merging to `production` auto-deploys to `www.bogieboard.com` against Supabase Production.
+4. When ready, open a PR from `develop` → `main`.
+5. Merging to `main` auto-deploys to `www.bogieboard.com` against Supabase Production.
 
-The `production` branch is live. Never commit directly to it — always promote via PR.
+`main` is production-stable. Do not commit directly to it.
 
 ## GitHub Environments (for Actions secrets)
 
@@ -150,7 +145,7 @@ Scheduled runs default to `production` (no input → fallback to `production`).
 Configure in **Amplify Console → App settings → Environment variables**,
 scoped per branch:
 
-| Variable                       | `production` branch (live)          | `main` branch (staging)            |
+| Variable                       | `main` (production)                 | `develop`                          |
 |--------------------------------|-------------------------------------|------------------------------------|
 | `VITE_APP_ENV`                 | `production`                        | `develop`                          |
 | `VITE_SUPABASE_URL`            | Production project URL              | Dev project URL                    |
