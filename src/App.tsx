@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import PartnerDashboard from "./pages/PartnerDashboard";
 import PartnerPage from "./pages/PartnerPage";
 import PartnerMember from "./pages/PartnerMember";
+import Team from "./pages/Team";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
@@ -39,6 +40,7 @@ const App = () => (
           <Route path="/partner-dashboard" element={<PartnerDashboard />} />
           <Route path="/partners/:slug" element={<PartnerPage />} />
           <Route path="/partner-member" element={<PartnerMember />} />
+          <Route path="/team" element={<Team />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/cookie-policy" element={<CookiePolicy />} />

@@ -27,6 +27,7 @@ export function Footer({ isLoggedIn = false }: FooterProps) {
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-white/90">
+                <li><a href="/team" className="hover:text-white transition-colors">Team</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">About</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
