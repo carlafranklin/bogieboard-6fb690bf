@@ -1,132 +1,119 @@
+# Branching Model Flip: `main` = staging, `production` = live
 
-# Develop → Production Release Plumbing (Focused Scope)
-
-Implements environment-awareness for the `develop` (staging) and `main` (production) release model. **No changes** to Supabase client, generated types, `.env`, auth flow, edge function source, or cron schedules.
-
----
-
-## File-by-File Changes
-
-### 1. `src/vite-env.d.ts` — augment ImportMeta types
-Add typed declarations for `VITE_APP_ENV` (and the Supabase vars already in use) so `import.meta.env.VITE_APP_ENV` is typed as `'production' | 'develop' | 'preview' | undefined` without modifying generated files.
-
-### 2. `src/lib/env.ts` — NEW
-Small helper module:
-```ts
-export type AppEnv = 'production' | 'develop' | 'preview';
-export const APP_ENV: AppEnv = (import.meta.env.VITE_APP_ENV as AppEnv) || 'preview';
-export const isProduction = () => APP_ENV === 'production';
-export const isDevelop = () => APP_ENV === 'develop';
-export const isPreview = () => APP_ENV === 'preview';
-```
-- Strict: reads only `VITE_APP_ENV`. No hostname inference.
-- Defaults to `preview` when the var is missing (Lovable preview, local dev).
-
-### 3. `src/components/EnvBadge.tsx` — NEW
-Small fixed pill, bottom-right, `z-50`, hidden in production:
-- `develop` → yellow pill, label `DEV`
-- `preview` → gray pill, label `PREVIEW`
-- `production` → renders `null`
-
-Uses existing Tailwind tokens (no new colors, no new deps). Accessible (`role="status"`, `aria-label`).
-
-### 4. `src/App.tsx` — mount the badge
-Add one import and `<EnvBadge />` next to `<CookieConsent />` inside `<BrowserRouter>`. No other changes.
-
-### 5. GitHub Actions — bind to `develop` / `production` Environments
-Update all 6 workflows under `.github/workflows/`:
-- `ingest-events.yml`
-- `ingest-events-full.yml`
-- `ingest-feeds.yml`
-- `scrape-events.yml`
-- `cleanup-events.yml`
-- `monitor-feeds.yml`
-
-For each workflow:
-- Add a `workflow_dispatch` input `environment` with options `production` and `develop`, default `production`.
-- Add `environment: ${{ inputs.environment || 'production' }}` to the job so GitHub resolves `SUPABASE_URL` / `SUPABASE_ANON_KEY` from the chosen Environment.
-- Schedules unchanged → continue running against `production` by default.
-- No edits to the curl bodies, payloads, or cron strings.
-
-GitHub Environment name: **`develop`** (lowercase, matches branch name; GitHub accepts this exactly).
-
-### 6. `README.md` — additive updates only
-Preserve all existing content. Append/update:
-- **Environments** section — table of `production` / `develop` / `preview` with branch, domain, Supabase project, `VITE_APP_ENV` value, badge color.
-- **Release Workflow** section — Lovable commits to `develop` → tested at `dev.bogieboard.com` → PR `develop` → `main` for production.
-- **GitHub Environments** subsection — how to create `production` and `develop` Environments and which secrets each needs (`SUPABASE_URL`, `SUPABASE_ANON_KEY`).
-- **Manual workflow runs** subsection — how to use the new `environment` input on Actions → Run workflow.
-
-No removal of existing README content.
+Lovable continues to commit to **`main`** (its default tracked branch — no Labs needed). A new long-lived **`production`** branch becomes the live release. Promotion is a PR from `main` → `production`.
 
 ---
 
-## Explicitly NOT Changed
-- `src/integrations/supabase/client.ts`
-- `src/integrations/supabase/types.ts`
-- `.env`
-- Any auth code (`Auth.tsx`, `AuthCallback.tsx`, `ResetPassword.tsx`, `profileSync.ts`)
-- Any edge function under `supabase/functions/**`
-- Any cron schedule in any workflow
-- `supabase/config.toml`
+## Environment Matrix (revised)
+
+| Environment | Branch       | Domain                | Supabase project | `VITE_APP_ENV` | Badge |
+|-------------|--------------|-----------------------|------------------|----------------|-------|
+| Production  | `production` | `www.bogieboard.com`  | Prod             | `production`   | none  |
+| Develop     | `main`       | `dev.bogieboard.com`  | Dev              | `develop`      | yellow `DEV` |
+| Preview     | n/a          | Lovable preview / localhost | whichever `.env` points to | unset → `preview` | gray `PREVIEW` |
+
+Note: the **branch** is `main`, but its **logical environment** is "develop". `VITE_APP_ENV=develop` on the `main` branch in Amplify is what drives the `DEV` badge and any `isDevelop()` checks.
 
 ---
 
-## Build / Test
-- Run `bun run build` (or `npx vite build`) after edits to confirm no TS errors from the `vite-env.d.ts` augmentation or the new badge component.
-- Spot-check that `EnvBadge` renders nothing when `VITE_APP_ENV=production` and renders `PREVIEW` in the Lovable preview (no env var set).
+## File Changes
+
+### 1. `.github/workflows/*.yml` (all 6)
+Already updated to accept an `environment` input with options `production` / `develop` and bind `environment: ${{ inputs.environment || 'production' }}`. **No further code change needed** — these names refer to GitHub *Environments*, not branches, so they remain correct under the flipped model.
+
+Only adjustment: scheduled cron runs currently default to the `production` Environment. That stays correct (we still want scheduled ingestion to hit the prod Supabase project).
+
+### 2. `README.md` — rewrite the Environments / Release Workflow sections
+Replace the previous `develop` → `main` narrative with the flipped model:
+
+- Environment Matrix table (above).
+- Release flow diagram:
+  ```text
+  Lovable ──► main ──► Amplify (main branch) ──► dev.bogieboard.com ──► Supabase Dev
+                                                                          │
+                                                  PR + review + QA        │
+                                                            ▼             │
+                production ──► Amplify (production branch) ──► www.bogieboard.com ──► Supabase Production
+  ```
+- Explicit callout: "The `main` branch is the **staging** environment. The `production` branch is **live**. Never commit directly to `production`; always promote via PR from `main`."
+- GitHub Environments table unchanged (`production` / `develop` Environments still hold the right secrets).
+- Amplify per-branch env vars table updated:
+  - `production` branch → `VITE_APP_ENV=production` + prod Supabase values
+  - `main` branch → `VITE_APP_ENV=develop` + dev Supabase values
+
+### 3. No changes to
+- `src/lib/env.ts`, `src/components/EnvBadge.tsx`, `src/vite-env.d.ts`, `src/App.tsx` — env detection is driven by `VITE_APP_ENV`, which is set per Amplify branch, so the flipped branch model needs no code change.
+- `src/integrations/supabase/client.ts`, `src/integrations/supabase/types.ts`, `.env`
+- Any auth code, edge function source, cron schedules, or `supabase/config.toml`.
 
 ---
 
-## Manual Setup Checklist (provided after implementation)
+## Manual Setup Checklist (revised for flipped model)
 
 ### GitHub
-1. Create `develop` branch from current `main`.
-2. In Lovable: **Connectors → GitHub → Settings**, change tracked branch to `develop`.
-3. **Settings → Environments**, create:
-   - `production` → secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY` (production project values).
+1. From current `main`, create a new branch **`production`** (GitHub UI → branch dropdown → "Create branch: production from main"). This becomes the live branch.
+2. **Settings → Branches → Default branch**: leave `main` as default (Lovable keeps tracking it).
+3. **Settings → Branches → Branch protection rules**: protect `production` — require PR from `main`, no direct pushes, optionally require review.
+4. **Settings → Environments**, create (if not already):
+   - `production` → secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY` (prod project values).
    - `develop` → secrets `SUPABASE_URL`, `SUPABASE_ANON_KEY` (dev project values).
-4. (Optional) Protect `main` branch: require PR from `develop`, no direct pushes.
+   - Optional: add required reviewers on the `production` Environment so manual workflow runs against prod need approval.
+
+### Lovable
+- No action. Lovable's tracked branch stays as `main`. Skip Labs entirely.
+
+### AWS Amplify
+1. In the existing Amplify app, **Connect branch** → add `production` as a second branch deployment.
+2. **App settings → Environment variables**, scope per branch:
+   - `production` branch:
+     - `VITE_APP_ENV=production`
+     - `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` → **prod** values
+   - `main` branch:
+     - `VITE_APP_ENV=develop`
+     - same three keys → **dev** values
+3. **Hosting → Domain management**:
+   - `production` branch → `www.bogieboard.com` (+ apex `bogieboard.com` redirect to www)
+   - `main` branch → `dev.bogieboard.com`
+4. Trigger a build on each branch to verify env vars are picked up.
 
 ### Supabase (Dev project)
-1. Create new Supabase project `bogieboard-dev`.
+1. Create new Supabase project (e.g. `bogieboard-dev`).
 2. Apply all migrations from `supabase/migrations/` via `supabase db push --project-ref <dev-ref>`.
-3. Deploy all 5 edge functions to dev project.
-4. Set the same Edge Function secrets as prod: `TICKETMASTER_API_KEY`, `EVENTBRITE_PRIVATE_TOKEN`, `GOOGLE_AI_API_KEY`, etc. (`SUPABASE_SERVICE_ROLE_KEY` is auto-provisioned).
+3. Deploy all 5 edge functions to the dev project.
+4. Set the same Edge Function secrets as prod (`TICKETMASTER_API_KEY`, `EVENTBRITE_PRIVATE_TOKEN`, `GOOGLE_AI_API_KEY`, etc.). `SUPABASE_SERVICE_ROLE_KEY` is auto-provisioned.
 5. Auth → URL Configuration:
    - Site URL: `https://dev.bogieboard.com`
    - Additional Redirect URLs: `https://dev.bogieboard.com/auth/callback`, `http://localhost:8080/auth/callback`
-6. Auth → Providers: configure Google/Apple/Facebook with dev OAuth client IDs and dev callback URLs.
+6. Auth → Providers: configure Google (and Apple/Facebook if used) with **dev** OAuth client and dev callback URLs.
 
 ### Supabase (Prod project — audit only)
-1. Confirm Site URL: `https://www.bogieboard.com`
-2. Confirm Additional Redirect URLs include: `https://www.bogieboard.com/auth/callback`, `https://bogieboard.com/auth/callback`
-
-### AWS Amplify
-1. Connect the `develop` branch as a second environment.
-2. **App Settings → Environment variables**, scope per branch:
-   - `main` branch: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` (production values), `VITE_APP_ENV=production`
-   - `develop` branch: same keys with dev values, `VITE_APP_ENV=develop`
-3. **Hosting → Domain management**:
-   - `main` → `www.bogieboard.com` (+ apex redirect to www)
-   - `develop` → `dev.bogieboard.com`
-4. Trigger a build on each branch to verify env vars are picked up.
+- Site URL: `https://www.bogieboard.com`
+- Additional Redirect URLs include: `https://www.bogieboard.com/auth/callback`, `https://bogieboard.com/auth/callback`
 
 ### DNS (at registrar)
-1. Add `CNAME` record: `dev` → Amplify-provided target for the develop branch.
-2. Verify `www` and apex still resolve correctly to the production Amplify branch.
+1. Add `CNAME` record `dev` → Amplify target for the **`main`** branch.
+2. Verify `www` and apex still point to Amplify target for the **`production`** branch.
 
 ### Google OAuth (and Apple/Facebook if used)
-1. In Google Cloud Console, create a **second OAuth 2.0 Client** for dev (or add URIs to the existing client):
+1. In Google Cloud Console, create a second OAuth 2.0 client for dev (or extend existing):
    - Authorized JavaScript origins: `https://dev.bogieboard.com`
    - Authorized redirect URIs: `https://<dev-supabase-ref>.supabase.co/auth/v1/callback`
-2. Paste the dev client ID/secret into Supabase Dev → Auth → Providers → Google.
-3. Confirm production OAuth client still lists `https://www.bogieboard.com` and the prod Supabase callback URL.
+2. Paste dev client ID/secret into Supabase Dev → Auth → Providers → Google.
+3. Confirm prod OAuth client still lists `https://www.bogieboard.com` and the prod Supabase callback URL.
+
+---
+
+## Promotion Workflow (day-to-day)
+
+1. Lovable commits land on `main` → auto-deploys to `dev.bogieboard.com` (Supabase Dev).
+2. QA on dev domain.
+3. Open PR `main` → `production`. Review and merge.
+4. Amplify auto-deploys `production` branch to `www.bogieboard.com` (Supabase Prod).
+5. For the data pipelines, use **Actions → Run workflow → environment: production** (or `develop`) to manually target either backend. Scheduled runs continue to hit production.
 
 ---
 
 ## Deliverables After Implementation
-1. File-by-file diff summary.
-2. Build output / TS check result.
-3. The full manual setup checklist above, with anything I discovered during implementation appended.
-
+1. Diff: only `README.md` is rewritten this round (workflows already updated last round).
+2. Build/TS check result.
+3. Final manual checklist (above) reproduced verbatim in chat for your tracking.
