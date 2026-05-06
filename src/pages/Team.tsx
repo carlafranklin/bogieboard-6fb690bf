@@ -61,9 +61,9 @@ const Team = () => {
             {team.map((m) => (
               <Card key={m.name} className="transition-shadow hover:shadow-md">
                 <CardContent className="p-6 flex flex-col items-center text-center gap-4">
-                  <Avatar className="h-32 w-32">
+                  <Avatar className="h-64 w-64">
                     <AvatarImage src={m.photo} alt={`${m.name} headshot`} className="object-cover" />
-                    <AvatarFallback className="text-xl font-semibold bg-primary text-primary-foreground">
+                    <AvatarFallback className="text-3xl font-semibold bg-primary text-primary-foreground">
                       {m.initials}
                     </AvatarFallback>
                   </Avatar>
