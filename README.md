@@ -150,7 +150,7 @@ Scheduled runs default to `production` (no input → fallback to `production`).
 Configure in **Amplify Console → App settings → Environment variables**,
 scoped per branch:
 
-| Variable                       | `main` (production)                 | `develop`                          |
+| Variable                       | `production` branch (live)          | `main` branch (staging)            |
 |--------------------------------|-------------------------------------|------------------------------------|
 | `VITE_APP_ENV`                 | `production`                        | `develop`                          |
 | `VITE_SUPABASE_URL`            | Production project URL              | Dev project URL                    |
