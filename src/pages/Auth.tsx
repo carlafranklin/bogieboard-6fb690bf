@@ -56,7 +56,11 @@ export default function AuthPage() {
           password,
           options: {
             emailRedirectTo: window.location.origin,
-            data: isPartnerSignup ? { is_partner: true } : {},
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+              ...(isPartnerSignup ? { is_partner: true } : {}),
+            },
           },
         });
         if (error) throw error;
