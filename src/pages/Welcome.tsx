@@ -219,6 +219,24 @@ export default function Welcome() {
     setShowOnboarding(false);
   };
 
+  const handleSaveName = async () => {
+    if (!userId) return;
+    const first = promptFirstName.trim();
+    const last = promptLastName.trim();
+    if (!first && !last) return;
+    setSavingName(true);
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({ user_id: userId, first_name: first || null, last_name: last || null } as any, { onConflict: 'user_id' });
+    setSavingName(false);
+    if (error) {
+      toast({ title: 'Could not save name', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setProfile(prev => prev ? { ...prev, first_name: first || null, last_name: last || null } : prev);
+    setShowNamePrompt(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
