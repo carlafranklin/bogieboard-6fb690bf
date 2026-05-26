@@ -267,6 +267,44 @@ export default function Welcome() {
           initial="hidden"
           animate="visible"
         >
+          {/* ── Inline name prompt ── */}
+          {showNamePrompt && (
+            <motion.section variants={fadeUp} className="mb-6">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
+                <div className="flex items-start gap-2 mb-3">
+                  <User className="w-4 h-4 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Tell us your name</p>
+                    <p className="text-xs text-muted-foreground">So we can personalize your experience.</p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    placeholder="First name"
+                    value={promptFirstName}
+                    onChange={(e) => setPromptFirstName(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Last name"
+                    value={promptLastName}
+                    onChange={(e) => setPromptLastName(e.target.value)}
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                  <Button
+                    onClick={handleSaveName}
+                    disabled={savingName || (!promptFirstName.trim() && !promptLastName.trim())}
+                    className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
+                  >
+                    {savingName ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save & Continue'}
+                  </Button>
+                </div>
+              </div>
+            </motion.section>
+          )}
+
           {/* ── Hero greeting ── */}
           <motion.section variants={fadeUp} className="relative mb-8">
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/12 via-card to-secondary/8 border border-primary/10 px-6 py-10 sm:px-10 sm:py-14">
