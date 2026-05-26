@@ -147,6 +147,8 @@ export default function ProfilePage() {
       favorite_cities: favoriteCities as unknown as Json,
       interests: interests as unknown as Json,
       email: profile.email || null,
+      custom_avatar_url: profile.custom_avatar_url ?? null,
+      selected_avatar_id: profile.selected_avatar_id ?? null,
     };
 
     console.log('[Profile Save] userId:', userId);
@@ -199,16 +201,19 @@ export default function ProfilePage() {
     const url = `${publicUrl}?t=${Date.now()}`;
     console.log('[Photo Upload] Public URL:', url);
 
+    const previousAvatarUrl = profile.custom_avatar_url ?? null;
+    setProfile(prev => ({ ...prev, custom_avatar_url: url, selected_avatar_id: null }));
+
     const { error: updateError } = await supabase
       .from('profiles')
       .upsert({ user_id: userId, custom_avatar_url: url, selected_avatar_id: null } as any, { onConflict: 'user_id' });
     if (updateError) {
       console.error('[Photo Upload] Profile upsert error:', updateError);
+      setProfile(prev => ({ ...prev, custom_avatar_url: previousAvatarUrl }));
       toast.error('Photo uploaded but profile update failed', { description: getSafeErrorMessage(updateError) });
     } else {
       toast.success('Photo updated!');
     }
-    setProfile(prev => ({ ...prev, custom_avatar_url: url, selected_avatar_id: null }));
     setUploading(false);
   };
 
