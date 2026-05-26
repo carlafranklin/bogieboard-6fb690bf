@@ -201,16 +201,19 @@ export default function ProfilePage() {
     const url = `${publicUrl}?t=${Date.now()}`;
     console.log('[Photo Upload] Public URL:', url);
 
+    const previousAvatarUrl = profile.custom_avatar_url ?? null;
+    setProfile(prev => ({ ...prev, custom_avatar_url: url, selected_avatar_id: null }));
+
     const { error: updateError } = await supabase
       .from('profiles')
       .upsert({ user_id: userId, custom_avatar_url: url, selected_avatar_id: null } as any, { onConflict: 'user_id' });
     if (updateError) {
       console.error('[Photo Upload] Profile upsert error:', updateError);
+      setProfile(prev => ({ ...prev, custom_avatar_url: previousAvatarUrl }));
       toast.error('Photo uploaded but profile update failed', { description: getSafeErrorMessage(updateError) });
     } else {
       toast.success('Photo updated!');
     }
-    setProfile(prev => ({ ...prev, custom_avatar_url: url, selected_avatar_id: null }));
     setUploading(false);
   };
 
