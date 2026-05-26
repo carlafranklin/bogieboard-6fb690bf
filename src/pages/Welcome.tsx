@@ -96,6 +96,11 @@ export default function Welcome() {
         const p: ProfileData = { ...profileRow, favorite_cities: favCities } as ProfileData;
         setProfile(p);
 
+        if (!p.first_name && !p.last_name) {
+          setShowNamePrompt(true);
+        }
+
+
         // Determine new vs returning user
         const prevLogin = (profileRow as any).last_login_at;
         if (!prevLogin && !(profileRow as any).first_login_at) {
