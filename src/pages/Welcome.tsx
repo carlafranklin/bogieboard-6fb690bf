@@ -60,6 +60,11 @@ export default function Welcome() {
   const [nearbyEvents, setNearbyEvents] = useState<NearbyEvent[]>([]);
   const [nearestMetroName, setNearestMetroName] = useState<string | null>(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [promptFirstName, setPromptFirstName] = useState('');
+  const [promptLastName, setPromptLastName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+
 
   useEffect(() => {
     const init = async () => {
