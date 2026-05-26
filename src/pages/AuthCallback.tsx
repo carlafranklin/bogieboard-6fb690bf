@@ -86,9 +86,10 @@ export default function AuthCallback() {
         return;
       }
 
-      // Route: first-time users go to /welcome, returning users also go to /welcome (different messaging)
+      // Route: returning users with completed onboarding go home; new or incomplete go to /welcome
       const isNewUser = isFirstTime || (!existingProfile?.onboarding_completed && !existingProfile?.onboarding_skipped);
-      navigate(isNewUser ? '/welcome' : '/welcome', { replace: true });
+      const isReturning = !isNewUser && existingProfile?.onboarding_completed === true;
+      navigate(isReturning ? '/' : '/welcome', { replace: true });
     };
 
     handleCallback();
