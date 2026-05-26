@@ -147,6 +147,8 @@ export default function ProfilePage() {
       favorite_cities: favoriteCities as unknown as Json,
       interests: interests as unknown as Json,
       email: profile.email || null,
+      custom_avatar_url: profile.custom_avatar_url ?? null,
+      selected_avatar_id: profile.selected_avatar_id ?? null,
     };
 
     console.log('[Profile Save] userId:', userId);
