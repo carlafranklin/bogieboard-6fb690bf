@@ -21,6 +21,8 @@ import ResetPassword from "./pages/ResetPassword";
 import AuthCallback from "./pages/AuthCallback";
 import { CookieConsent } from "./components/CookieConsent";
 import { EnvBadge } from "./components/EnvBadge";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+
 
 const queryClient = new QueryClient();
 
