@@ -21,6 +21,8 @@ import ResetPassword from "./pages/ResetPassword";
 import AuthCallback from "./pages/AuthCallback";
 import { CookieConsent } from "./components/CookieConsent";
 import { EnvBadge } from "./components/EnvBadge";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+
 
 const queryClient = new QueryClient();
 
@@ -33,12 +35,13 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/events" element={<Events />} />
-          <Route path="/welcome" element={<Welcome />} />
+          <Route path="/welcome" element={<ProtectedRoute><Welcome /></ProtectedRoute>} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/partner-dashboard" element={<PartnerDashboard />} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+          <Route path="/partner-dashboard" element={<ProtectedRoute><PartnerDashboard /></ProtectedRoute>} />
           <Route path="/partners/:slug" element={<PartnerPage />} />
+
           <Route path="/partner-member" element={<PartnerMember />} />
           <Route path="/team" element={<Team />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
