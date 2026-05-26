@@ -27,6 +27,10 @@ export default function AuthPage() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
+        if ((event as string) === 'SIGNED_UP') {
+          navigate('/welcome');
+          return;
+        }
         const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id);
         const isPartner = roles?.some(r => r.role === 'partner') || false;
         navigate(isPartner ? '/partner-dashboard' : '/');
