@@ -27,7 +27,7 @@ export default function AuthPage() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
-        if (event === 'SIGNED_UP') {
+        if ((event as string) === 'SIGNED_UP') {
           navigate('/welcome');
           return;
         }
