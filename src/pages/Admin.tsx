@@ -470,6 +470,136 @@ export default function AdminPage() {
     }
   };
 
+  // -------- Metro Areas --------
+  const loadMetros = async () => {
+    setMetrosLoading(true);
+    const { data, error } = await supabase.from('metro_areas').select('*').order('name');
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error, 'Failed to load metro areas.'), variant: 'destructive' });
+    } else {
+      setMetros((data as MetroArea[]) || []);
+    }
+    setMetrosLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAdmin && activeTab === 'metros') {
+      loadMetros();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, activeTab]);
+
+  const jsonbToCsv = (v: unknown): string => {
+    if (Array.isArray(v)) return v.map(String).join(', ');
+    return '';
+  };
+  const parseCsvList = (s: string): string[] =>
+    s.split(',').map(x => x.trim()).filter(Boolean);
+
+  const openCreateMetro = () => {
+    setMetroForm(emptyMetroForm);
+    setEditingMetroId('new');
+  };
+
+  const openEditMetro = (m: MetroArea) => {
+    setMetroForm({
+      name: m.name ?? '',
+      slug: m.slug ?? '',
+      core_cities: jsonbToCsv(m.core_cities),
+      included_counties: jsonbToCsv(m.included_counties),
+      included_zip_prefixes: jsonbToCsv(m.included_zip_prefixes),
+      latitude: m.latitude != null ? String(m.latitude) : '',
+      longitude: m.longitude != null ? String(m.longitude) : '',
+    });
+    setEditingMetroId(m.id);
+  };
+
+  const cancelMetroEdit = () => {
+    setEditingMetroId(null);
+    setMetroForm(emptyMetroForm);
+  };
+
+  const saveMetro = async () => {
+    const name = metroForm.name.trim();
+    const slug = metroForm.slug.trim().toLowerCase();
+    if (!name) {
+      toast({ title: 'Validation', description: 'Name is required.', variant: 'destructive' });
+      return;
+    }
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      toast({ title: 'Validation', description: 'Slug must contain only lowercase letters, numbers, and hyphens.', variant: 'destructive' });
+      return;
+    }
+    const lat = metroForm.latitude.trim() === '' ? null : Number(metroForm.latitude);
+    const lon = metroForm.longitude.trim() === '' ? null : Number(metroForm.longitude);
+    if (lat !== null && Number.isNaN(lat)) {
+      toast({ title: 'Validation', description: 'Latitude must be a number.', variant: 'destructive' });
+      return;
+    }
+    if (lon !== null && Number.isNaN(lon)) {
+      toast({ title: 'Validation', description: 'Longitude must be a number.', variant: 'destructive' });
+      return;
+    }
+
+    setMetroSaving(true);
+    const { error } = await supabase.rpc('admin_upsert_metro_area', {
+      p_id: editingMetroId === 'new' ? null : editingMetroId,
+      p_name: name,
+      p_slug: slug,
+      p_core_cities: parseCsvList(metroForm.core_cities),
+      p_included_counties: parseCsvList(metroForm.included_counties),
+      p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
+      p_latitude: lat,
+      p_longitude: lon,
+    });
+    setMetroSaving(false);
+
+    if (error) {
+      const code = (error as { code?: string }).code;
+      const msg = code === '23505'
+        ? 'A metro with that name or slug already exists.'
+        : getSafeErrorMessage(error, 'Failed to save metro area.');
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Saved', description: editingMetroId === 'new' ? 'Metro area created.' : 'Metro area updated.' });
+    cancelMetroEdit();
+    await loadMetros();
+  };
+
+  const requestStatusChange = (m: MetroArea, target: boolean) => {
+    setStatusDialog({ open: true, metro: m, target, reason: '', submitting: false });
+  };
+
+  const submitStatusChange = async () => {
+    const { metro, target, reason } = statusDialog;
+    if (!metro) return;
+    if (!target && reason.trim().length < 3) return;
+
+    setStatusDialog(s => ({ ...s, submitting: true }));
+    const { error } = await supabase.rpc('admin_set_metro_area_status', {
+      p_id: metro.id,
+      p_is_active: target,
+      p_reason: target ? null : reason.trim(),
+    });
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error, 'Failed to update status.'), variant: 'destructive' });
+      setStatusDialog(s => ({ ...s, submitting: false }));
+      return;
+    }
+    toast({ title: 'Updated', description: target ? 'Metro area activated.' : 'Metro area deactivated.' });
+    setStatusDialog({ open: false, metro: null, target: false, reason: '', submitting: false });
+    await loadMetros();
+  };
+
+  const filteredMetros = metros.filter(m => {
+    const q = metroSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (m.name?.toLowerCase().includes(q) || m.slug?.toLowerCase().includes(q));
+  });
+
+
+
   if (!isAdmin || loading) {
     return (
       <div className="min-h-screen bg-background">
