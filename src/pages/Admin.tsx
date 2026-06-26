@@ -26,6 +26,7 @@ type Subcategory = Tables<'subcategories'>;
 type UserRole = Tables<'user_roles'>;
 type FeedRegistry = Tables<'feed_registry'>;
 type PartnerEvent = Tables<'partner_events'>;
+type MetroArea = Tables<'metro_areas'>;
 
 interface PartnerEventWithProfile extends PartnerEvent {
   partner_profiles: { business_name: string; slug: string } | null;
