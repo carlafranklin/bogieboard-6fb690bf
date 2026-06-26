@@ -475,7 +475,7 @@ export default function AdminPage() {
     setMetrosLoading(true);
     const { data, error } = await supabase.from('metro_areas').select('*').order('name');
     if (error) {
-      toast({ title: 'Error', description: getSafeErrorMessage(error, 'Failed to load metro areas.'), variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
       setMetros((data as MetroArea[]) || []);
     }
@@ -558,7 +558,7 @@ export default function AdminPage() {
       const code = (error as { code?: string }).code;
       const msg = code === '23505'
         ? 'A metro with that name or slug already exists.'
-        : getSafeErrorMessage(error, 'Failed to save metro area.');
+        : getSafeErrorMessage(error);
       toast({ title: 'Error', description: msg, variant: 'destructive' });
       return;
     }
@@ -583,7 +583,7 @@ export default function AdminPage() {
       p_reason: target ? null : reason.trim(),
     });
     if (error) {
-      toast({ title: 'Error', description: getSafeErrorMessage(error, 'Failed to update status.'), variant: 'destructive' });
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
       setStatusDialog(s => ({ ...s, submitting: false }));
       return;
     }
