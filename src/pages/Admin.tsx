@@ -90,6 +90,30 @@ export default function AdminPage() {
   const [feedAlerts, setFeedAlerts] = useState<FeedHealthItem[]>([]);
   const [feedHealthLoading, setFeedHealthLoading] = useState(false);
 
+  // Metro Areas state
+  interface MetroFormState {
+    name: string;
+    slug: string;
+    core_cities: string;
+    included_counties: string;
+    included_zip_prefixes: string;
+    latitude: string;
+    longitude: string;
+  }
+  const emptyMetroForm: MetroFormState = {
+    name: '', slug: '', core_cities: '', included_counties: '', included_zip_prefixes: '', latitude: '', longitude: '',
+  };
+  const [metros, setMetros] = useState<MetroArea[]>([]);
+  const [metrosLoading, setMetrosLoading] = useState(false);
+  const [metroSearch, setMetroSearch] = useState('');
+  const [editingMetroId, setEditingMetroId] = useState<string | null>(null);
+  const [metroForm, setMetroForm] = useState<MetroFormState>(emptyMetroForm);
+  const [metroSaving, setMetroSaving] = useState(false);
+  const [statusDialog, setStatusDialog] = useState<{ open: boolean; metro: MetroArea | null; target: boolean; reason: string; submitting: boolean }>({
+    open: false, metro: null, target: false, reason: '', submitting: false,
+  });
+
+
   useEffect(() => {
     const checkAdmin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
