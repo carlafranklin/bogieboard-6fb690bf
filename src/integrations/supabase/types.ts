@@ -645,10 +645,12 @@ export type Database = {
           id: string
           included_counties: Json
           included_zip_prefixes: Json | null
+          is_active: boolean
           latitude: number | null
           longitude: number | null
           name: string
           slug: string
+          updated_at: string
         }
         Insert: {
           core_cities?: Json
@@ -656,10 +658,12 @@ export type Database = {
           id?: string
           included_counties?: Json
           included_zip_prefixes?: Json | null
+          is_active?: boolean
           latitude?: number | null
           longitude?: number | null
           name: string
           slug: string
+          updated_at?: string
         }
         Update: {
           core_cities?: Json
@@ -667,10 +671,12 @@ export type Database = {
           id?: string
           included_counties?: Json
           included_zip_prefixes?: Json | null
+          is_active?: boolean
           latitude?: number | null
           longitude?: number | null
           name?: string
           slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1403,6 +1409,23 @@ export type Database = {
           p_new_value: Json
           p_old_value: Json
           p_reason: string
+        }
+        Returns: string
+      }
+      admin_set_metro_area_status: {
+        Args: { p_id: string; p_is_active: boolean; p_reason: string }
+        Returns: undefined
+      }
+      admin_upsert_metro_area: {
+        Args: {
+          p_core_cities: Json
+          p_id: string
+          p_included_counties: Json
+          p_included_zip_prefixes: Json
+          p_latitude: number
+          p_longitude: number
+          p_name: string
+          p_slug: string
         }
         Returns: string
       }
