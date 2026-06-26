@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock, AlertTriangle, RefreshCw, MapPin, Power, PowerOff, Search } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { categoryNameSchema, subcategoryNameSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ type Subcategory = Tables<'subcategories'>;
 type UserRole = Tables<'user_roles'>;
 type FeedRegistry = Tables<'feed_registry'>;
 type PartnerEvent = Tables<'partner_events'>;
+type MetroArea = Tables<'metro_areas'>;
 
 interface PartnerEventWithProfile extends PartnerEvent {
   partner_profiles: { business_name: string; slug: string } | null;
@@ -88,6 +89,30 @@ export default function AdminPage() {
   }
   const [feedAlerts, setFeedAlerts] = useState<FeedHealthItem[]>([]);
   const [feedHealthLoading, setFeedHealthLoading] = useState(false);
+
+  // Metro Areas state
+  interface MetroFormState {
+    name: string;
+    slug: string;
+    core_cities: string;
+    included_counties: string;
+    included_zip_prefixes: string;
+    latitude: string;
+    longitude: string;
+  }
+  const emptyMetroForm: MetroFormState = {
+    name: '', slug: '', core_cities: '', included_counties: '', included_zip_prefixes: '', latitude: '', longitude: '',
+  };
+  const [metros, setMetros] = useState<MetroArea[]>([]);
+  const [metrosLoading, setMetrosLoading] = useState(false);
+  const [metroSearch, setMetroSearch] = useState('');
+  const [editingMetroId, setEditingMetroId] = useState<string | null>(null);
+  const [metroForm, setMetroForm] = useState<MetroFormState>(emptyMetroForm);
+  const [metroSaving, setMetroSaving] = useState(false);
+  const [statusDialog, setStatusDialog] = useState<{ open: boolean; metro: MetroArea | null; target: boolean; reason: string; submitting: boolean }>({
+    open: false, metro: null, target: false, reason: '', submitting: false,
+  });
+
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -445,6 +470,136 @@ export default function AdminPage() {
     }
   };
 
+  // -------- Metro Areas --------
+  const loadMetros = async () => {
+    setMetrosLoading(true);
+    const { data, error } = await supabase.from('metro_areas').select('*').order('name');
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+    } else {
+      setMetros((data as MetroArea[]) || []);
+    }
+    setMetrosLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAdmin && activeTab === 'metros') {
+      loadMetros();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, activeTab]);
+
+  const jsonbToCsv = (v: unknown): string => {
+    if (Array.isArray(v)) return v.map(String).join(', ');
+    return '';
+  };
+  const parseCsvList = (s: string): string[] =>
+    s.split(',').map(x => x.trim()).filter(Boolean);
+
+  const openCreateMetro = () => {
+    setMetroForm(emptyMetroForm);
+    setEditingMetroId('new');
+  };
+
+  const openEditMetro = (m: MetroArea) => {
+    setMetroForm({
+      name: m.name ?? '',
+      slug: m.slug ?? '',
+      core_cities: jsonbToCsv(m.core_cities),
+      included_counties: jsonbToCsv(m.included_counties),
+      included_zip_prefixes: jsonbToCsv(m.included_zip_prefixes),
+      latitude: m.latitude != null ? String(m.latitude) : '',
+      longitude: m.longitude != null ? String(m.longitude) : '',
+    });
+    setEditingMetroId(m.id);
+  };
+
+  const cancelMetroEdit = () => {
+    setEditingMetroId(null);
+    setMetroForm(emptyMetroForm);
+  };
+
+  const saveMetro = async () => {
+    const name = metroForm.name.trim();
+    const slug = metroForm.slug.trim().toLowerCase();
+    if (!name) {
+      toast({ title: 'Validation', description: 'Name is required.', variant: 'destructive' });
+      return;
+    }
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      toast({ title: 'Validation', description: 'Slug must contain only lowercase letters, numbers, and hyphens.', variant: 'destructive' });
+      return;
+    }
+    const lat = metroForm.latitude.trim() === '' ? null : Number(metroForm.latitude);
+    const lon = metroForm.longitude.trim() === '' ? null : Number(metroForm.longitude);
+    if (lat !== null && Number.isNaN(lat)) {
+      toast({ title: 'Validation', description: 'Latitude must be a number.', variant: 'destructive' });
+      return;
+    }
+    if (lon !== null && Number.isNaN(lon)) {
+      toast({ title: 'Validation', description: 'Longitude must be a number.', variant: 'destructive' });
+      return;
+    }
+
+    setMetroSaving(true);
+    const { error } = await supabase.rpc('admin_upsert_metro_area', {
+      p_id: editingMetroId === 'new' ? null : editingMetroId,
+      p_name: name,
+      p_slug: slug,
+      p_core_cities: parseCsvList(metroForm.core_cities),
+      p_included_counties: parseCsvList(metroForm.included_counties),
+      p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
+      p_latitude: lat,
+      p_longitude: lon,
+    });
+    setMetroSaving(false);
+
+    if (error) {
+      const code = (error as { code?: string }).code;
+      const msg = code === '23505'
+        ? 'A metro with that name or slug already exists.'
+        : getSafeErrorMessage(error);
+      toast({ title: 'Error', description: msg, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Saved', description: editingMetroId === 'new' ? 'Metro area created.' : 'Metro area updated.' });
+    cancelMetroEdit();
+    await loadMetros();
+  };
+
+  const requestStatusChange = (m: MetroArea, target: boolean) => {
+    setStatusDialog({ open: true, metro: m, target, reason: '', submitting: false });
+  };
+
+  const submitStatusChange = async () => {
+    const { metro, target, reason } = statusDialog;
+    if (!metro) return;
+    if (!target && reason.trim().length < 3) return;
+
+    setStatusDialog(s => ({ ...s, submitting: true }));
+    const { error } = await supabase.rpc('admin_set_metro_area_status', {
+      p_id: metro.id,
+      p_is_active: target,
+      p_reason: target ? null : reason.trim(),
+    });
+    if (error) {
+      toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+      setStatusDialog(s => ({ ...s, submitting: false }));
+      return;
+    }
+    toast({ title: 'Updated', description: target ? 'Metro area activated.' : 'Metro area deactivated.' });
+    setStatusDialog({ open: false, metro: null, target: false, reason: '', submitting: false });
+    await loadMetros();
+  };
+
+  const filteredMetros = metros.filter(m => {
+    const q = metroSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (m.name?.toLowerCase().includes(q) || m.slug?.toLowerCase().includes(q));
+  });
+
+
+
   if (!isAdmin || loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -538,6 +693,7 @@ export default function AdminPage() {
                 </TabsTrigger>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
                 <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
+                <TabsTrigger value="metros" className="gap-2"><MapPin className="w-4 h-4" />Metro Areas</TabsTrigger>
                 <TabsTrigger value="stats" className="gap-2"><BarChart3 className="w-4 h-4" />Statistics</TabsTrigger>
               </TabsList>
 
@@ -1095,6 +1251,192 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
+              </TabsContent>
+
+              {/* Metro Areas Tab */}
+              <TabsContent value="metros">
+                <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                        <MapPin className="w-5 h-5" />Metro Areas
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-1">Manage supported metro regions. Records can be deactivated but not deleted.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={metroSearch}
+                          onChange={e => setMetroSearch(e.target.value)}
+                          placeholder="Search name or slug…"
+                          className="pl-8 w-56"
+                        />
+                      </div>
+                      <Button onClick={openCreateMetro} disabled={editingMetroId !== null} className="gap-2">
+                        <Plus className="w-4 h-4" />Add Metro Area
+                      </Button>
+                    </div>
+                  </div>
+
+                  {editingMetroId !== null && (
+                    <div className="border border-border rounded-lg p-4 bg-muted/30 space-y-4">
+                      <h3 className="font-medium text-foreground">
+                        {editingMetroId === 'new' ? 'Add Metro Area' : 'Edit Metro Area'}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="metro-name">Name *</Label>
+                          <Input id="metro-name" value={metroForm.name} onChange={e => setMetroForm({ ...metroForm, name: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label htmlFor="metro-slug">Slug * <span className="text-xs text-muted-foreground">(lowercase, hyphens)</span></Label>
+                          <Input
+                            id="metro-slug"
+                            value={metroForm.slug}
+                            onChange={e => setMetroForm({ ...metroForm, slug: e.target.value })}
+                            onBlur={e => setMetroForm(f => ({ ...f, slug: e.target.value.trim().toLowerCase() }))}
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label htmlFor="metro-cities">Core cities (comma-separated)</Label>
+                          <Input id="metro-cities" value={metroForm.core_cities} onChange={e => setMetroForm({ ...metroForm, core_cities: e.target.value })} placeholder="Charlotte, Concord, Gastonia" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label htmlFor="metro-counties">Included counties (comma-separated)</Label>
+                          <Input id="metro-counties" value={metroForm.included_counties} onChange={e => setMetroForm({ ...metroForm, included_counties: e.target.value })} placeholder="Mecklenburg, Cabarrus" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label htmlFor="metro-zips">Included ZIP prefixes (comma-separated)</Label>
+                          <Input id="metro-zips" value={metroForm.included_zip_prefixes} onChange={e => setMetroForm({ ...metroForm, included_zip_prefixes: e.target.value })} placeholder="280, 281" />
+                        </div>
+                        <div>
+                          <Label htmlFor="metro-lat">Latitude</Label>
+                          <Input id="metro-lat" value={metroForm.latitude} onChange={e => setMetroForm({ ...metroForm, latitude: e.target.value })} />
+                        </div>
+                        <div>
+                          <Label htmlFor="metro-lon">Longitude</Label>
+                          <Input id="metro-lon" value={metroForm.longitude} onChange={e => setMetroForm({ ...metroForm, longitude: e.target.value })} />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={cancelMetroEdit} disabled={metroSaving}>
+                          <X className="w-4 h-4 mr-1" />Cancel
+                        </Button>
+                        <Button onClick={saveMetro} disabled={metroSaving}>
+                          {metroSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {metrosLoading ? (
+                    <div className="flex items-center justify-center py-12 text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />Loading metro areas…
+                    </div>
+                  ) : metros.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">No metro areas yet.</div>
+                  ) : filteredMetros.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground">No matches for "{metroSearch}".</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Slug</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Cities</TableHead>
+                            <TableHead>Counties</TableHead>
+                            <TableHead>Updated</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredMetros.map(m => {
+                            const cities = Array.isArray(m.core_cities) ? m.core_cities.length : 0;
+                            const counties = Array.isArray(m.included_counties) ? m.included_counties.length : 0;
+                            return (
+                              <TableRow key={m.id}>
+                                <TableCell className="font-medium">{m.name}</TableCell>
+                                <TableCell className="font-mono text-xs">{m.slug}</TableCell>
+                                <TableCell>
+                                  {m.is_active ? (
+                                    <Badge variant="default">Active</Badge>
+                                  ) : (
+                                    <Badge variant="secondary">Inactive</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>{cities}</TableCell>
+                                <TableCell>{counties}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {m.updated_at ? new Date(m.updated_at).toLocaleDateString() : '—'}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="inline-flex gap-1">
+                                    <Button size="sm" variant="outline" onClick={() => openEditMetro(m)} disabled={editingMetroId !== null}>
+                                      <Pencil className="w-3.5 h-3.5 mr-1" />Edit
+                                    </Button>
+                                    {m.is_active ? (
+                                      <Button size="sm" variant="outline" onClick={() => requestStatusChange(m, false)}>
+                                        <PowerOff className="w-3.5 h-3.5 mr-1" />Deactivate
+                                      </Button>
+                                    ) : (
+                                      <Button size="sm" variant="outline" onClick={() => requestStatusChange(m, true)}>
+                                        <Power className="w-3.5 h-3.5 mr-1" />Activate
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+
+                <AlertDialog
+                  open={statusDialog.open}
+                  onOpenChange={(open) => { if (!open && !statusDialog.submitting) setStatusDialog({ open: false, metro: null, target: false, reason: '', submitting: false }); }}
+                >
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {statusDialog.target ? 'Activate metro area?' : 'Deactivate metro area?'}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {statusDialog.target
+                          ? <>This will make <strong>{statusDialog.metro?.name}</strong> active again.</>
+                          : <>This will deactivate <strong>{statusDialog.metro?.name}</strong>. A reason is required and will be recorded in the audit log.</>}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {!statusDialog.target && (
+                      <div className="space-y-2">
+                        <Label htmlFor="deact-reason">Reason (min 3 characters)</Label>
+                        <Textarea
+                          id="deact-reason"
+                          value={statusDialog.reason}
+                          onChange={e => setStatusDialog(s => ({ ...s, reason: e.target.value }))}
+                          placeholder="Why is this being deactivated?"
+                          rows={3}
+                        />
+                      </div>
+                    )}
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={statusDialog.submitting}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => { e.preventDefault(); submitStatusChange(); }}
+                        disabled={statusDialog.submitting || (!statusDialog.target && statusDialog.reason.trim().length < 3)}
+                      >
+                        {statusDialog.submitting && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+                        {statusDialog.target ? 'Activate' : 'Deactivate'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </TabsContent>
             </Tabs>
           </motion.div>
