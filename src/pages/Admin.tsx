@@ -693,6 +693,7 @@ export default function AdminPage() {
                 </TabsTrigger>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
                 <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
+                <TabsTrigger value="metros" className="gap-2"><MapPin className="w-4 h-4" />Metro Areas</TabsTrigger>
                 <TabsTrigger value="stats" className="gap-2"><BarChart3 className="w-4 h-4" />Statistics</TabsTrigger>
               </TabsList>
 
