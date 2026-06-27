@@ -546,6 +546,8 @@ export default function AdminPage() {
       return;
     }
 
+    if (!editingMetroId) return;
+
     setMetroSaving(true);
     const { error } = editingMetroId === 'new'
       ? await supabase.rpc('admin_create_metro', {
