@@ -526,8 +526,13 @@ export default function AdminPage() {
       toast({ title: 'Validation', description: 'Name is required.', variant: 'destructive' });
       return;
     }
-    if (!/^[a-z0-9-]+$/.test(slug)) {
-      toast({ title: 'Validation', description: 'Slug must contain only lowercase letters, numbers, and hyphens.', variant: 'destructive' });
+    if (editingMetroId === 'new' && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
+      toast({ title: 'Validation', description: 'Slug must use lowercase letters and digits separated by single hyphens, with no leading, trailing, or consecutive hyphens.', variant: 'destructive' });
+      return;
+    }
+    const cities = parseCsvList(metroForm.core_cities);
+    if (cities.length === 0) {
+      toast({ title: 'Validation', description: 'At least one core city is required.', variant: 'destructive' });
       return;
     }
     const lat = metroForm.latitude.trim() === '' ? null : Number(metroForm.latitude);
@@ -542,16 +547,25 @@ export default function AdminPage() {
     }
 
     setMetroSaving(true);
-    const { error } = await supabase.rpc('admin_upsert_metro_area', {
-      p_id: editingMetroId === 'new' ? null : editingMetroId,
-      p_name: name,
-      p_slug: slug,
-      p_core_cities: parseCsvList(metroForm.core_cities),
-      p_included_counties: parseCsvList(metroForm.included_counties),
-      p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
-      p_latitude: lat,
-      p_longitude: lon,
-    });
+    const { error } = editingMetroId === 'new'
+      ? await supabase.rpc('admin_create_metro', {
+          p_name:                  name,
+          p_slug:                  slug,
+          p_core_cities:           cities,
+          p_included_counties:     parseCsvList(metroForm.included_counties),
+          p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
+          p_latitude:              lat,
+          p_longitude:             lon,
+        })
+      : await supabase.rpc('admin_update_metro', {
+          p_metro_id:              editingMetroId,
+          p_name:                  name,
+          p_core_cities:           cities,
+          p_included_counties:     parseCsvList(metroForm.included_counties),
+          p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
+          p_latitude:              lat,
+          p_longitude:             lon,
+        });
     setMetroSaving(false);
 
     if (error) {
@@ -577,10 +591,10 @@ export default function AdminPage() {
     if (!target && reason.trim().length < 3) return;
 
     setStatusDialog(s => ({ ...s, submitting: true }));
-    const { error } = await supabase.rpc('admin_set_metro_area_status', {
-      p_id: metro.id,
-      p_is_active: target,
-      p_reason: target ? null : reason.trim(),
+    const { error } = await supabase.rpc('admin_set_metro_active', {
+      p_metro_id: metro.id,
+      p_active:   target,
+      p_reason:   target ? null : reason.trim(),
     });
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
@@ -1290,13 +1304,22 @@ export default function AdminPage() {
                           <Input id="metro-name" value={metroForm.name} onChange={e => setMetroForm({ ...metroForm, name: e.target.value })} />
                         </div>
                         <div>
-                          <Label htmlFor="metro-slug">Slug * <span className="text-xs text-muted-foreground">(lowercase, hyphens)</span></Label>
-                          <Input
-                            id="metro-slug"
-                            value={metroForm.slug}
-                            onChange={e => setMetroForm({ ...metroForm, slug: e.target.value })}
-                            onBlur={e => setMetroForm(f => ({ ...f, slug: e.target.value.trim().toLowerCase() }))}
-                          />
+                          {editingMetroId === 'new' ? (
+                            <>
+                              <Label htmlFor="metro-slug">Slug * <span className="text-xs text-muted-foreground">(lowercase, hyphens — cannot be changed later)</span></Label>
+                              <Input
+                                id="metro-slug"
+                                value={metroForm.slug}
+                                onChange={e => setMetroForm({ ...metroForm, slug: e.target.value })}
+                                onBlur={e => setMetroForm(f => ({ ...f, slug: e.target.value.trim().toLowerCase() }))}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <Label htmlFor="metro-slug">Slug <span className="text-xs text-muted-foreground">(cannot be changed)</span></Label>
+                              <Input id="metro-slug" value={metroForm.slug} readOnly disabled className="opacity-60 cursor-not-allowed" />
+                            </>
+                          )}
                         </div>
                         <div className="md:col-span-2">
                           <Label htmlFor="metro-cities">Core cities (comma-separated)</Label>
