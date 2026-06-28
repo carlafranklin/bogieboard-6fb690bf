@@ -522,25 +522,17 @@ export default function AdminPage() {
     if (!editingMetroId) return;
 
     setMetroSaving(true);
-    const { error } = editingMetroId === 'new'
-      ? await supabase.rpc('admin_create_metro', {
-          p_name:                  name,
-          p_slug:                  slug,
-          p_core_cities:           cities,
-          p_included_counties:     parseCsvList(metroForm.included_counties),
-          p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
-          p_latitude:              lat,
-          p_longitude:             lon,
-        })
-      : await supabase.rpc('admin_update_metro', {
-          p_metro_id:              editingMetroId,
-          p_name:                  name,
-          p_core_cities:           cities,
-          p_included_counties:     parseCsvList(metroForm.included_counties),
-          p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
-          p_latitude:              lat,
-          p_longitude:             lon,
-        });
+    const { error } = await supabase.rpc('admin_upsert_metro_area', {
+      p_id:                    (editingMetroId === 'new' ? null : editingMetroId) as unknown as string,
+      p_name:                  name,
+      p_slug:                  slug,
+      p_core_cities:           cities,
+      p_included_counties:     parseCsvList(metroForm.included_counties),
+      p_included_zip_prefixes: parseCsvList(metroForm.included_zip_prefixes),
+      p_latitude:              lat as unknown as number,
+      p_longitude:             lon as unknown as number,
+    });
+
     setMetroSaving(false);
 
     if (error) {
@@ -566,11 +558,12 @@ export default function AdminPage() {
     if (!target && reason.trim().length < 3) return;
 
     setStatusDialog(s => ({ ...s, submitting: true }));
-    const { error } = await supabase.rpc('admin_set_metro_active', {
-      p_metro_id: metro.id,
-      p_active:   target,
-      p_reason:   target ? null : reason.trim(),
+    const { error } = await supabase.rpc('admin_set_metro_area_status', {
+      p_id:        metro.id,
+      p_is_active: target,
+      p_reason:    (target ? null : reason.trim()) as unknown as string,
     });
+
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
       setStatusDialog(s => ({ ...s, submitting: false }));
