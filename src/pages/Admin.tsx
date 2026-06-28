@@ -71,7 +71,7 @@ export default function AdminPage() {
   const [newFeedUrl, setNewFeedUrl] = useState('');
   const [newFeedMetro, setNewFeedMetro] = useState('');
   const [newFeedCity, setNewFeedCity] = useState('');
-  const [scrapeRunning, setScrapeRunning] = useState(false);
+  
 
   // Moderation state
   const [pendingEvents, setPendingEvents] = useState<PartnerEventWithProfile[]>([]);
