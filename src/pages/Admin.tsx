@@ -910,11 +910,14 @@ export default function AdminPage() {
                 <div className="bg-card rounded-xl border border-border p-6">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="font-display text-lg font-semibold text-foreground">HTML Scrape Sources</h2>
-                    <Button onClick={handleRunScraper} disabled={scrapeRunning} size="sm" className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">
-                      {scrapeRunning ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Globe className="w-4 h-4 mr-1" />}
-                      {scrapeRunning ? 'Scraping...' : 'Run Scraper Now'}
-                    </Button>
                   </div>
+                  <Alert variant="default" className="mb-6 border-yellow-500/30 bg-yellow-500/10">
+                    <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                    <AlertTitle className="text-yellow-500">Controlled HTML Sources</AlertTitle>
+                    <AlertDescription className="text-yellow-500/90">
+                      No HTML sources are enabled for the MVP. Ticketmaster ingestion runs through the managed ingest-dispatcher → ingest_queue → ingest-worker pipeline. HTML source onboarding will be enabled only after source-by-source compliance, robots.txt, terms, rate-limit, source-lineage, and monitoring controls are approved.
+                    </AlertDescription>
+                  </Alert>
 
                   {/* Add New Source */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-6 p-4 bg-muted/30 rounded-lg border border-border">
