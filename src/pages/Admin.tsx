@@ -442,33 +442,6 @@ export default function AdminPage() {
     }
   };
 
-  const handleRunScraper = async () => {
-    setScrapeRunning(true);
-    try {
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/scrape-events`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }
-      );
-      const data = await resp.json();
-      if (data.success) {
-        const totalCreated = data.results?.reduce((sum: number, r: any) => sum + (r.created || 0), 0) || 0;
-        const totalFound = data.results?.reduce((sum: number, r: any) => sum + (r.events_found || 0), 0) || 0;
-        toast({ title: 'Scrape complete', description: `Found ${totalFound} events, created ${totalCreated} new.` });
-      } else {
-        toast({ title: 'Scrape error', description: data.error || 'Unknown error', variant: 'destructive' });
-      }
-    } catch (e) {
-      toast({ title: 'Error', description: 'Failed to run scraper.', variant: 'destructive' });
-    } finally {
-      setScrapeRunning(false);
-    }
-  };
 
   // -------- Metro Areas --------
   const loadMetros = async () => {
