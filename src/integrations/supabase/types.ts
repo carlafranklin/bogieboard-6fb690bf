@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       avatars: {
         Row: {
           animal_name: string
@@ -1365,6 +1401,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_log_action: {
+        Args: {
+          p_action: string
+          p_entity_id: string
+          p_entity_type: string
+          p_new_value: Json
+          p_old_value: Json
+          p_reason: string
+        }
+        Returns: string
+      }
+      admin_set_metro_area_status: {
+        Args: { p_id: string; p_is_active: boolean; p_reason: string }
+        Returns: undefined
+      }
+      admin_upsert_metro_area: {
+        Args: {
+          p_core_cities: Json
+          p_id: string
+          p_included_counties: Json
+          p_included_zip_prefixes: Json
+          p_latitude: number
+          p_longitude: number
+          p_name: string
+          p_slug: string
+        }
+        Returns: string
+      }
       generate_event_hash: {
         Args: {
           p_city: string
@@ -1453,38 +1517,6 @@ export type Database = {
           venue_state: string
           venue_zip: string
         }[]
-      }
-      admin_create_metro: {
-        Args: {
-          p_name: string
-          p_slug: string
-          p_core_cities: Json
-          p_included_counties?: Json
-          p_included_zip_prefixes?: Json
-          p_latitude?: number | null
-          p_longitude?: number | null
-        }
-        Returns: string
-      }
-      admin_update_metro: {
-        Args: {
-          p_metro_id: string
-          p_name?: string | null
-          p_core_cities?: Json | null
-          p_included_counties?: Json | null
-          p_included_zip_prefixes?: Json | null
-          p_latitude?: number | null
-          p_longitude?: number | null
-        }
-        Returns: undefined
-      }
-      admin_set_metro_active: {
-        Args: {
-          p_metro_id: string
-          p_active: boolean
-          p_reason?: string | null
-        }
-        Returns: undefined
       }
     }
     Enums: {
@@ -1636,4 +1668,3 @@ export const Constants = {
     },
   },
 } as const
-
