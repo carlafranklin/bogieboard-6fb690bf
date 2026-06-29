@@ -1412,22 +1412,37 @@ export type Database = {
         }
         Returns: string
       }
-      admin_set_metro_area_status: {
-        Args: { p_id: string; p_is_active: boolean; p_reason: string }
-        Returns: undefined
-      }
-      admin_upsert_metro_area: {
+      admin_create_metro: {
         Args: {
-          p_core_cities: Json
-          p_id: string
-          p_included_counties: Json
-          p_included_zip_prefixes: Json
-          p_latitude: number
-          p_longitude: number
           p_name: string
           p_slug: string
+          p_core_cities: Json
+          p_included_counties?: Json
+          p_included_zip_prefixes?: Json
+          p_latitude?: number | null
+          p_longitude?: number | null
         }
         Returns: string
+      }
+      admin_update_metro: {
+        Args: {
+          p_metro_id: string
+          p_name?: string | null
+          p_core_cities?: Json | null
+          p_included_counties?: Json | null
+          p_included_zip_prefixes?: Json | null
+          p_latitude?: number | null
+          p_longitude?: number | null
+        }
+        Returns: undefined
+      }
+      admin_set_metro_active: {
+        Args: {
+          p_metro_id: string
+          p_active: boolean
+          p_reason?: string | null
+        }
+        Returns: undefined
       }
       generate_event_hash: {
         Args: {
