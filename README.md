@@ -26,3 +26,21 @@ Changes are developed and tested against `main` (staging/Dev) before being
 merged into `production` for release. Do not commit directly to `production`.
 
 ## Project Structure
+
+├── .github/          # GitHub Actions workflows / repo config
+├── .lovable/          # Lovable.dev project configuration
+├── public/            # Static assets served as-is
+├── src/               # Application source (React + Vite)
+├── supabase/          # Supabase config, migrations, Edge Functions
+├── index.html         # Vite entry HTML
+├── package.json       # Dependencies and scripts
+├── vite.config.ts     # Vite build configuration
+├── tailwind.config.ts
+└── tsconfig*.json      # TypeScript configuration
+
+> Top-level overview only. `src/` and `supabase/` internals are not yet
+> documented here pending a deeper inspection pass.
+
+## Current Pilot Markets
+
+Charlotte, Greensboro/Winston-Salem, Durham, Raleigh, Wilmington (North Carolina).
