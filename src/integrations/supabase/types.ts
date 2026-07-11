@@ -1467,6 +1467,7 @@ export type Database = {
       search_events: {
         Args: {
           p_category_slug?: string
+          p_cities?: string[]
           p_date_from?: string
           p_date_to?: string
           p_limit?: number
