@@ -8,7 +8,7 @@ import { SearchModule, SearchParams } from '@/components/SearchModule';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SaveEventButton } from '@/components/SaveEventButton';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
-import { metroAreas } from '@/data/metroAreas';
+import { useActiveMetros } from '@/hooks/useActiveMetros';
 import { categoryLabels } from '@/data/mockEvents';
 import { Button } from '@/components/ui/button';
 import {
@@ -116,7 +116,8 @@ function getEventImage(event: CanonicalEvent): string {
 }
 
 export default function EventsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
   const [selectedEvent, setSelectedEvent] = useState<CanonicalEvent | null>(null);
   const [events, setEvents] = useState<CanonicalEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,8 +135,32 @@ export default function EventsPage() {
     dateMode: 'single' as 'single' | 'range',
   });
 
-  // Active category chip (separate from search query category for quick filtering)
-  const [activeChip, setActiveChip] = useState<string>('all');
+  // Selected cities within the chosen metro (client-side drill-down; search_events RPC has no city param)
+  const [selectedCities, setSelectedCities] = useState<string[]>(() => {
+    const raw = searchParams.get('cities');
+    return raw ? raw.split(',').filter(Boolean) : [];
+  });
+  const isFirstLocationRun = useRef(true);
+
+  // Clear stale city selections when the metro changes (but not on initial mount, so
+  // deep links with both ?location= and ?cities= are respected).
+  useEffect(() => {
+    if (isFirstLocationRun.current) {
+      isFirstLocationRun.current = false;
+      return;
+    }
+    setSelectedCities([]);
+  }, [searchQuery.location]);
+
+  // Keep the URL in sync so location/category/city filters survive navigation and reloads.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery.location && searchQuery.location !== 'all') params.set('location', searchQuery.location);
+    if (searchQuery.category && searchQuery.category !== 'all') params.set('category', searchQuery.category);
+    if (selectedCities.length > 0) params.set('cities', selectedCities.join(','));
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery.location, searchQuery.category, selectedCities]);
 
   // Get auth state
   useEffect(() => {
@@ -253,16 +278,24 @@ export default function EventsPage() {
     fetchEvents();
   }, [searchQuery]);
 
+  // Cities available to filter on, derived from the current metro/category/date-scoped results
+  const availableCities = useMemo(() => {
+    const set = new Set<string>();
+    events.forEach((e) => { if (e.venue_city) set.add(e.venue_city); });
+    return Array.from(set).sort();
+  }, [events]);
+
+  const toggleCity = (city: string) => {
+    setSelectedCities((prev) => (prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]));
+  };
+
   // Filter and sort
   const displayEvents = useMemo(() => {
     let filtered = events;
 
-    // Category chip filter
-    if (activeChip !== 'all') {
-      filtered = filtered.filter((e) => {
-        const cats = (e.category_names ?? []).map(c => c.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-        return cats.includes(activeChip);
-      });
+    // City drill-down (client-side: search_events has no city param)
+    if (selectedCities.length > 0) {
+      filtered = filtered.filter((e) => e.venue_city && selectedCities.includes(e.venue_city));
     }
 
     // Price filter
@@ -290,10 +323,10 @@ export default function EventsPage() {
     }
 
     return sorted;
-  }, [events, activeChip, priceFilter, sortBy]);
+  }, [events, selectedCities, priceFilter, sortBy]);
 
   const locationLabel = searchQuery.location && searchQuery.location !== 'all'
-    ? metroAreas.find((m) => m.value === searchQuery.location)?.label
+    ? metros.find((m) => m.value === searchQuery.location)?.label
     : null;
 
   const hasDate = searchQuery.dateMode === 'single' ? !!searchQuery.date : !!searchQuery.dateRange?.from;
@@ -452,14 +485,53 @@ export default function EventsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Locations</SelectItem>
-                          {metroAreas.map((metro) => (
-                            <SelectItem key={metro.value} value={metro.value}>
-                              {metro.label}
-                            </SelectItem>
-                          ))}
+                          {metrosLoading ? (
+                            <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+                          ) : metrosError ? (
+                            <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+                          ) : (
+                            metros.map((metro) => (
+                              <SelectItem key={metro.value} value={metro.value}>
+                                {metro.label}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* City drill-down: only once a specific metro is selected */}
+                    {searchQuery.location && searchQuery.location !== 'all' && availableCities.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-medium">Cities</h4>
+                          {selectedCities.length > 0 && (
+                            <button
+                              onClick={() => setSelectedCities([])}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              Clear Cities
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {availableCities.map((city) => (
+                            <button
+                              key={city}
+                              onClick={() => toggleCity(city)}
+                              className={cn(
+                                'px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                                selectedCities.includes(city)
+                                  ? 'bg-foreground text-background border-foreground'
+                                  : 'bg-background text-foreground border-border hover:bg-muted'
+                              )}
+                            >
+                              {city}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -481,10 +553,10 @@ export default function EventsPage() {
                   {categoryChips.map((chip) => (
                     <button
                       key={chip.value}
-                      onClick={() => setActiveChip(chip.value)}
+                      onClick={() => setSearchQuery(q => ({ ...q, category: chip.value }))}
                       className={cn(
                         'shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors whitespace-nowrap',
-                        activeChip === chip.value
+                        searchQuery.category === chip.value
                           ? 'bg-foreground text-background border-foreground'
                           : 'bg-background text-foreground border-border hover:bg-muted'
                       )}
@@ -502,6 +574,34 @@ export default function EventsPage() {
                 </button>
               </div>
             </div>
+
+            {/* Selected city chips */}
+            {selectedCities.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedCities.map((city) => (
+                  <span
+                    key={city}
+                    className="inline-flex items-center gap-1.5 bg-muted text-foreground text-xs font-medium px-2.5 py-1.5 rounded-full"
+                  >
+                    <MapPin className="w-3 h-3" />
+                    {city}
+                    <button
+                      onClick={() => toggleCity(city)}
+                      className="ml-0.5 hover:text-destructive transition-colors"
+                      aria-label={`Remove ${city}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                <button
+                  onClick={() => setSelectedCities([])}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear Cities
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Results count + Sort */}
@@ -661,10 +761,10 @@ export default function EventsPage() {
                 We couldn't find any events matching your search. Try broadening your filters or searching a different area.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button onClick={() => { setActiveChip('all'); setPriceFilter('all'); }} variant="outline" className="gap-2">
+                <Button onClick={() => { setSearchQuery(q => ({ ...q, category: 'all' })); setPriceFilter('all'); setSelectedCities([]); }} variant="outline" className="gap-2">
                   Clear Filters
                 </Button>
-                <Button onClick={() => { setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' }); setActiveChip('all'); setPriceFilter('all'); }} className="gap-2">
+                <Button onClick={() => { setSearchQuery({ location: '', category: 'all', date: undefined, dateRange: undefined, dateMode: 'single' }); setPriceFilter('all'); setSelectedCities([]); }} className="gap-2">
                   Start New Search
                 </Button>
               </div>

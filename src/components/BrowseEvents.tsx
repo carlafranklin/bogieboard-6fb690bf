@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { metroAreas } from '@/data/metroAreas';
+import { useActiveMetros } from '@/hooks/useActiveMetros';
+import { getPriceDisplay } from '@/lib/priceDisplay';
 
 interface BrowseEvent {
   event_id: string;
@@ -37,6 +38,7 @@ interface BrowseEvent {
 }
 
 export function BrowseEvents() {
+  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
   const [events, setEvents] = useState<BrowseEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [metroFilter, setMetroFilter] = useState<string>('all');
@@ -85,11 +87,17 @@ export function BrowseEvents() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Locations</SelectItem>
-                {metroAreas.map((metro) => (
-                  <SelectItem key={metro.value} value={metro.value}>
-                    {metro.label}
-                  </SelectItem>
-                ))}
+                {metrosLoading ? (
+                  <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+                ) : metrosError ? (
+                  <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+                ) : (
+                  metros.map((metro) => (
+                    <SelectItem key={metro.value} value={metro.value}>
+                      {metro.label}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             <Link to="/events">
@@ -162,13 +170,14 @@ export function BrowseEvents() {
                     )}
                   </div>
                   <div className="flex items-center justify-between pt-1">
-                    {event.price_min ? (
-                      <span className="font-semibold text-foreground text-sm">
-                        ${Number(event.price_min)}{event.price_max && event.price_max !== event.price_min ? ` – $${Number(event.price_max)}` : ''}
-                      </span>
-                    ) : (
-                      <span className="text-primary font-semibold text-sm">Free</span>
-                    )}
+                    {(() => {
+                      const price = getPriceDisplay(event);
+                      return (
+                        <span className={`font-semibold text-sm ${price.isFree ? 'text-primary' : 'text-foreground'}`}>
+                          {price.label}
+                        </span>
+                      );
+                    })()}
                     <SaveEventButton
                       eventId={event.event_id}
                       isSaved={false}

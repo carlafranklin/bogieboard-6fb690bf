@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { metroAreas } from '@/data/metroAreas';
+import { useActiveMetros } from '@/hooks/useActiveMetros';
 import { UserAccountMenu } from '@/components/UserAccountMenu';
 
 export function Header() {
@@ -24,6 +24,7 @@ export function Header() {
   const navigate = useNavigate();
 
   const [searchLocation, setSearchLocation] = useState('');
+  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
 
   useEffect(() => {
     const loadRoles = (uid: string) => {
@@ -90,11 +91,17 @@ export function Header() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Locations</SelectItem>
-                  {metroAreas.map((metro) => (
-                    <SelectItem key={metro.value} value={metro.value}>
-                      {metro.label}
-                    </SelectItem>
-                  ))}
+                  {metrosLoading ? (
+                    <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+                  ) : metrosError ? (
+                    <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+                  ) : (
+                    metros.map((metro) => (
+                      <SelectItem key={metro.value} value={metro.value}>
+                        {metro.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <Button
@@ -173,11 +180,17 @@ export function Header() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Locations</SelectItem>
-                        {metroAreas.map((metro) => (
-                          <SelectItem key={metro.value} value={metro.value}>
-                            {metro.label}
-                          </SelectItem>
-                        ))}
+                        {metrosLoading ? (
+                          <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+                        ) : metrosError ? (
+                          <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+                        ) : (
+                          metros.map((metro) => (
+                            <SelectItem key={metro.value} value={metro.value}>
+                              {metro.label}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <Button size="sm" onClick={() => { handleInlineSearch(); setIsMenuOpen(false); }} className="bg-primary hover:bg-green-dark text-primary-foreground h-9">
