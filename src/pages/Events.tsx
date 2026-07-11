@@ -34,6 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getPriceDisplay } from '@/lib/priceDisplay';
 
 interface CanonicalEvent {
   event_id: string;
@@ -727,18 +728,14 @@ export default function EventsPage() {
 
                       {/* Price */}
                       <div className="pt-1">
-                        {event.is_free ? (
-                          <span className="text-primary font-semibold text-sm">Free</span>
-                        ) : event.price_min ? (
-                          <span className="text-foreground font-semibold text-sm">
-                            from <span className="text-lg">${Number(event.price_min)}</span>
-                            {event.price_max && event.price_max !== event.price_min && (
-                              <span className="text-muted-foreground font-normal text-sm"> – ${Number(event.price_max)}</span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">See details</span>
-                        )}
+                        {(() => {
+                          const price = getPriceDisplay(event);
+                          return (
+                            <span className={`font-semibold text-sm ${price.isFree ? 'text-primary' : 'text-foreground'}`}>
+                              {price.label}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </motion.div>
