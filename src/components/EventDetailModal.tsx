@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { SaveEventButton } from './SaveEventButton';
 import { format, parseISO } from 'date-fns';
+import { getPriceDisplay } from '@/lib/priceDisplay';
 
 interface CanonicalEvent {
   event_id: string;
@@ -72,11 +73,7 @@ export function EventDetailModal({ event, onClose, userId, isSaved = false, onTo
   const formattedTime = event.all_day ? 'All Day' : format(parseISO(event.start_time), 'h:mm a');
   const eventImage = getEventImage(event);
 
-  const priceLabel = event.is_free
-    ? 'Free'
-    : event.price_min
-      ? `$${Number(event.price_min)}${event.price_max && event.price_max !== event.price_min ? ` – $${Number(event.price_max)}` : ''}`
-      : 'See details';
+  const priceLabel = getPriceDisplay(event).label;
 
   // Build full address string
   const addressParts = [

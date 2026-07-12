@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useActiveMetros } from '@/hooks/useActiveMetros';
+import { useDiscoverableMetros } from '@/hooks/useDiscoverableMetros';
 import { getPriceDisplay } from '@/lib/priceDisplay';
 
 interface BrowseEvent {
@@ -38,7 +38,7 @@ interface BrowseEvent {
 }
 
 export function BrowseEvents() {
-  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
+  const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
   const [events, setEvents] = useState<BrowseEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [metroFilter, setMetroFilter] = useState<string>('all');
