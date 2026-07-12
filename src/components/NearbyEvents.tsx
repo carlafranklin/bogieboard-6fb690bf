@@ -8,6 +8,7 @@ import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
 import type { Tables } from '@/integrations/supabase/types';
 import { mapCityToMetro, findNearestMetro } from '@/lib/locationUtils';
+import { getPriceDisplay } from '@/lib/priceDisplay';
 
 type CanonicalEvent = Tables<'canonical_events'>;
 
@@ -244,13 +245,14 @@ export function NearbyEvents({ userId, isSaved, onToggleSave, savingLoading, onS
                   )}
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  {event.price_min ? (
-                    <span className="font-semibold text-foreground text-sm">
-                      ${Number(event.price_min)}{event.price_max && event.price_max !== event.price_min ? ` – $${Number(event.price_max)}` : ''}
-                    </span>
-                  ) : (
-                    <span className="text-primary font-semibold text-sm">Free</span>
-                  )}
+                  {(() => {
+                    const price = getPriceDisplay(event);
+                    return (
+                      <span className={`font-semibold text-sm ${price.isFree ? 'text-primary' : 'text-foreground'}`}>
+                        {price.label}
+                      </span>
+                    );
+                  })()}
                   <SaveEventButton
                     eventId={event.id}
                     isSaved={isSaved(event.id)}

@@ -30,7 +30,7 @@ const suggestions = [
     title: 'Food & Drink',
     description: 'Food festivals, tastings, and culinary experiences.',
     image: eventFood,
-    slug: 'shopping',
+    slug: 'bar-fun',
   },
   {
     title: 'Sports & Fitness',

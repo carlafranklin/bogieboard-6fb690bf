@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Heart, Compass, Sparkles, ChevronRight, Home, Star, User, Calendar, Loader2 } from 'lucide-react';
+import { MapPin, Compass, Sparkles, ChevronRight, Home, Star, User, Calendar, Loader2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
@@ -491,12 +491,12 @@ export default function Welcome() {
             </div>
           </motion.section>
 
-          {/* ── Liked events rail ── */}
+          {/* ── Explore categories rail ── */}
           <motion.section variants={fadeUp} className="mb-8">
             <div className="flex items-center justify-between mb-4 px-1">
               <h2 className="font-display text-lg font-bold text-foreground flex items-center gap-2">
-                <Heart className="w-5 h-5 text-destructive/70" />
-                Liked Events
+                <Sparkles className="w-5 h-5 text-accent" />
+                Explore Categories
               </h2>
               <Button
                 variant="ghost"
@@ -511,17 +511,17 @@ export default function Welcome() {
             <div className="relative">
               <div className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide -mx-1 px-1">
                 {[
-                  { emoji: '🎶', title: 'Live Music', text: 'Concerts and jams near you' },
-                  { emoji: '🎨', title: 'Arts & Culture', text: 'Galleries, theatre, and more' },
-                  { emoji: '🍔', title: 'Food & Drink', text: 'Tastings, pop-ups, and fests' },
-                  { emoji: '🏃', title: 'Active & Outdoors', text: 'Runs, hikes, and games' },
+                  { emoji: '🎶', title: 'Live Music', text: 'Concerts and jams near you', slug: 'live-music' },
+                  { emoji: '🎨', title: 'Arts & Culture', text: 'Galleries, theatre, and more', slug: 'arts-theater' },
+                  { emoji: '🍔', title: 'Food & Drink', text: 'Tastings, pop-ups, and fests', slug: 'bar-fun' },
+                  { emoji: '🏃', title: 'Active & Outdoors', text: 'Runs, hikes, and games', slug: 'sports-games' },
                 ].map((card, i) => (
                   <motion.div
                     key={card.title}
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.3 + i * 0.08 }}
-                    onClick={() => navigate('/events')}
+                    onClick={() => navigate(`/events?category=${card.slug}`)}
                     className="flex-shrink-0 w-56 sm:w-64 snap-start cursor-pointer group"
                   >
                     <div className="h-40 sm:h-44 rounded-2xl border border-dashed border-border/80 bg-gradient-to-b from-muted/20 to-muted/40 flex flex-col items-center justify-center text-center p-5 transition-all duration-300 group-hover:border-primary/30 group-hover:bg-primary/5 group-hover:shadow-md">
@@ -535,7 +535,7 @@ export default function Welcome() {
               <div className="absolute right-0 top-0 bottom-3 w-10 bg-gradient-to-l from-background to-transparent pointer-events-none" />
             </div>
             <p className="text-center text-sm text-muted-foreground/50 mt-3 italic">
-              Save events you love and they'll appear here.
+              Tap a category to jump into upcoming events.
             </p>
           </motion.section>
 

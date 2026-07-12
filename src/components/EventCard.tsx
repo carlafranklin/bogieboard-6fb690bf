@@ -4,6 +4,7 @@ import { Event } from '@/data/mockEvents';
 import { CategoryBadge } from '@/components/ui/CategoryBadge';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
+import { getPriceDisplay } from '@/lib/priceDisplay';
 
 interface EventCardProps {
   event: Event;
@@ -56,11 +57,14 @@ export function EventCard({ event, index, onViewDetails }: EventCardProps) {
         </div>
 
         <div className="flex items-center justify-between pt-2">
-          {event.price ? (
-            <span className="font-semibold text-foreground">${event.price}</span>
-          ) : (
-            <span className="text-primary font-semibold">Free</span>
-          )}
+          {(() => {
+            const price = getPriceDisplay({ is_free: event.isFree, price_min: event.price, price_max: event.price });
+            return (
+              <span className={`font-semibold ${price.isFree ? 'text-primary' : 'text-foreground'}`}>
+                {price.label}
+              </span>
+            );
+          })()}
           <Button
             variant="ghost"
             size="sm"

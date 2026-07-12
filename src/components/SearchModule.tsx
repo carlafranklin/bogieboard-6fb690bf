@@ -17,7 +17,7 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { metroAreas } from '@/data/metroAreas';
+import { useActiveMetros } from '@/hooks/useActiveMetros';
 import type { DateRange } from 'react-day-picker';
 
 interface SearchModuleProps {
@@ -66,6 +66,7 @@ function formatDateLabel(dateMode: 'single' | 'range', date: Date | undefined, d
 }
 
 export function SearchModule({ onSearch, compact = false, variant = 'default' }: SearchModuleProps) {
+  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('all');
   const [dateMode, setDateMode] = useState<'single' | 'range'>('single');
@@ -150,11 +151,17 @@ export function SearchModule({ onSearch, compact = false, variant = 'default' }:
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Locations</SelectItem>
-              {metroAreas.map((metro) => (
-                <SelectItem key={metro.value} value={metro.value}>
-                  {metro.label}
-                </SelectItem>
-              ))}
+              {metrosLoading ? (
+                <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+              ) : metrosError ? (
+                <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+              ) : (
+                metros.map((metro) => (
+                  <SelectItem key={metro.value} value={metro.value}>
+                    {metro.label}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
           <Select value={category} onValueChange={setCategory}>
@@ -206,11 +213,17 @@ export function SearchModule({ onSearch, compact = false, variant = 'default' }:
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Locations</SelectItem>
-            {metroAreas.map((metro) => (
-              <SelectItem key={metro.value} value={metro.value}>
-                {metro.label}
-              </SelectItem>
-            ))}
+            {metrosLoading ? (
+              <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+            ) : metrosError ? (
+              <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+            ) : (
+              metros.map((metro) => (
+                <SelectItem key={metro.value} value={metro.value}>
+                  {metro.label}
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
 
@@ -284,11 +297,17 @@ export function SearchModule({ onSearch, compact = false, variant = 'default' }:
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Locations</SelectItem>
-              {metroAreas.map((metro) => (
-                <SelectItem key={metro.value} value={metro.value}>
-                  {metro.label}
-                </SelectItem>
-              ))}
+              {metrosLoading ? (
+                <SelectItem value="__loading" disabled>Loading locations…</SelectItem>
+              ) : metrosError ? (
+                <SelectItem value="__error" disabled>Locations unavailable</SelectItem>
+              ) : (
+                metros.map((metro) => (
+                  <SelectItem key={metro.value} value={metro.value}>
+                    {metro.label}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
