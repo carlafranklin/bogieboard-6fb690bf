@@ -121,6 +121,9 @@ export default function EventsPage() {
   const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
   const [selectedEvent, setSelectedEvent] = useState<CanonicalEvent | null>(null);
   const [events, setEvents] = useState<CanonicalEvent[]>([]);
+  // City options must stay stable regardless of the current city selection (option 7a), so
+  // they're sourced from a separate, city-unfiltered fetch scoped only to metro/category/date.
+  const [facetEvents, setFacetEvents] = useState<CanonicalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const { isSaved, toggleSave, loading: saveLoading } = useSavedEvents(userId);
@@ -173,36 +176,127 @@ export default function EventsPage() {
     });
   }, []);
 
+  // Helper to convert time strings like "7:00 PM" to "19:00:00"
+  function convertTimeToISO(timeStr: string): string {
+    try {
+      const match = timeStr.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
+      if (!match) return '00:00:00';
+      let hours = parseInt(match[1]);
+      const minutes = match[2] ? parseInt(match[2]) : 0;
+      const ampm = match[3]?.toUpperCase();
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+    } catch {
+      return '00:00:00';
+    }
+  }
+
+  // Map a partner_events row to the same shape as a canonical search_events row
+  function mapPartnerEvent(pe: any): CanonicalEvent {
+    return {
+      event_id: pe.id,
+      title: pe.title,
+      description_short: pe.description,
+      start_time: `${pe.event_date}T${pe.event_time ? convertTimeToISO(pe.event_time) : '00:00:00'}`,
+      end_time: pe.end_date ? `${pe.end_date}T${pe.end_time ? convertTimeToISO(pe.end_time) : '23:59:59'}` : null,
+      all_day: !pe.event_time,
+      is_free: pe.is_free || false,
+      price_min: pe.price,
+      price_max: pe.price,
+      ticket_url: pe.ticket_url,
+      image_url: pe.image_url,
+      age_restriction: pe.age_restriction,
+      status: 'active',
+      venue_name: pe.venue_name,
+      venue_address: pe.venue_address,
+      venue_city: pe.city,
+      venue_state: pe.state,
+      venue_zip: pe.zip_code,
+      metro_name: null,
+      category_names: pe.categories?.name ? [pe.categories.name] : [],
+      source_url: null,
+      discount_info: null,
+      posted_by: pe.partner_profiles?.business_name || null,
+    };
+  }
+
+  function getDateRange() {
+    let dateFrom = new Date().toISOString();
+    let dateTo: string | undefined;
+
+    if (searchQuery.dateMode === 'single' && searchQuery.date) {
+      dateFrom = searchQuery.date.toISOString();
+      const endOfDay = new Date(searchQuery.date);
+      endOfDay.setHours(23, 59, 59, 999);
+      dateTo = endOfDay.toISOString();
+    } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
+      dateFrom = searchQuery.dateRange.from.toISOString();
+      if (searchQuery.dateRange.to) {
+        const endOfDay = new Date(searchQuery.dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        dateTo = endOfDay.toISOString();
+      }
+    }
+    return { dateFrom, dateTo };
+  }
+
+  const metroSlug = searchQuery.location && searchQuery.location !== 'all' ? searchQuery.location : undefined;
+  const categorySlug = searchQuery.category !== 'all' ? searchQuery.category : undefined;
+
+  // Actual display results: filtered by metro/category/date and, now, by selected cities
+  // at the database level (search_events p_cities / partner_events .in('city', ...)).
   const fetchEvents = async () => {
     try {
       setLoading(true);
+      const { dateFrom, dateTo } = getDateRange();
+      const cityFilter = selectedCities.length > 0 ? selectedCities : undefined;
 
-      const metroSlug = searchQuery.location && searchQuery.location !== 'all'
-        ? searchQuery.location
-        : undefined;
+      let partnerQuery = supabase
+        .from('partner_events')
+        .select('*, partner_profiles!inner(business_name), categories(name)')
+        .eq('status', 'approved')
+        .gte('event_date', dateFrom.split('T')[0]);
+      if (cityFilter) {
+        partnerQuery = partnerQuery.in('city', cityFilter);
+      }
+      partnerQuery = partnerQuery.order('event_date');
 
-      const categorySlug = searchQuery.category !== 'all'
-        ? searchQuery.category
-        : undefined;
+      const [canonicalRes, partnerRes] = await Promise.all([
+        supabase.rpc('search_events', {
+          p_metro_slug: metroSlug,
+          p_category_slug: categorySlug,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
+          p_limit: 200,
+          p_cities: cityFilter,
+        }),
+        partnerQuery,
+      ]);
 
-      let dateFrom = new Date().toISOString();
-      let dateTo: string | undefined;
-
-      if (searchQuery.dateMode === 'single' && searchQuery.date) {
-        dateFrom = searchQuery.date.toISOString();
-        const endOfDay = new Date(searchQuery.date);
-        endOfDay.setHours(23, 59, 59, 999);
-        dateTo = endOfDay.toISOString();
-      } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
-        dateFrom = searchQuery.dateRange.from.toISOString();
-        if (searchQuery.dateRange.to) {
-          const endOfDay = new Date(searchQuery.dateRange.to);
-          endOfDay.setHours(23, 59, 59, 999);
-          dateTo = endOfDay.toISOString();
-        }
+      if (canonicalRes.error) {
+        console.error('Error fetching canonical events:', canonicalRes.error);
+      }
+      if (partnerRes.error) {
+        console.error('Error fetching partner events:', partnerRes.error);
       }
 
-      // Fetch canonical events and approved partner events in parallel
+      const partnerEvents: CanonicalEvent[] = (partnerRes.data || []).map(mapPartnerEvent);
+      const allEvents = [...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents];
+      setEvents(allEvents);
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // City-option facet: same metro/category/date scope, but never filtered by the current
+  // city selection, so picking one city never removes other cities from the picker.
+  const fetchCityFacets = async () => {
+    try {
+      const { dateFrom, dateTo } = getDateRange();
+
       const [canonicalRes, partnerRes] = await Promise.all([
         supabase.rpc('search_events', {
           p_metro_slug: metroSlug,
@@ -220,84 +314,41 @@ export default function EventsPage() {
       ]);
 
       if (canonicalRes.error) {
-        console.error('Error fetching canonical events:', canonicalRes.error);
+        console.error('Error fetching city facets:', canonicalRes.error);
       }
 
-      // Map partner events to the same shape as canonical events
-      const partnerEvents: CanonicalEvent[] = (partnerRes.data || []).map((pe: any) => ({
-        event_id: pe.id,
-        title: pe.title,
-        description_short: pe.description,
-        start_time: `${pe.event_date}T${pe.event_time ? convertTimeToISO(pe.event_time) : '00:00:00'}`,
-        end_time: pe.end_date ? `${pe.end_date}T${pe.end_time ? convertTimeToISO(pe.end_time) : '23:59:59'}` : null,
-        all_day: !pe.event_time,
-        is_free: pe.is_free || false,
-        price_min: pe.price,
-        price_max: pe.price,
-        ticket_url: pe.ticket_url,
-        image_url: pe.image_url,
-        age_restriction: pe.age_restriction,
-        status: 'active',
-        venue_name: pe.venue_name,
-        venue_address: pe.venue_address,
-        venue_city: pe.city,
-        venue_state: pe.state,
-        venue_zip: pe.zip_code,
-        metro_name: null,
-        category_names: pe.categories?.name ? [pe.categories.name] : [],
-        source_url: null,
-        discount_info: null,
-        posted_by: pe.partner_profiles?.business_name || null,
-      }));
-
-      const allEvents = [...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents];
-      setEvents(allEvents);
+      const partnerEvents: CanonicalEvent[] = (partnerRes.data || []).map(mapPartnerEvent);
+      setFacetEvents([...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents]);
     } catch (err) {
-      console.error('Failed to fetch events:', err);
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch city facets:', err);
     }
   };
 
-  // Helper to convert time strings like "7:00 PM" to "19:00:00"
-  function convertTimeToISO(timeStr: string): string {
-    try {
-      const match = timeStr.match(/(\d{1,2}):?(\d{2})?\s*(AM|PM)?/i);
-      if (!match) return '00:00:00';
-      let hours = parseInt(match[1]);
-      const minutes = match[2] ? parseInt(match[2]) : 0;
-      const ampm = match[3]?.toUpperCase();
-      if (ampm === 'PM' && hours < 12) hours += 12;
-      if (ampm === 'AM' && hours === 12) hours = 0;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-    } catch {
-      return '00:00:00';
-    }
-  }
-
   useEffect(() => {
     fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, selectedCities]);
+
+  useEffect(() => {
+    fetchCityFacets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
-  // Cities available to filter on, derived from the current metro/category/date-scoped results
+  // Cities available to filter on, derived from the metro/category/date-scoped facet set
+  // (independent of selectedCities, per option 7a)
   const availableCities = useMemo(() => {
     const set = new Set<string>();
-    events.forEach((e) => { if (e.venue_city) set.add(e.venue_city); });
+    facetEvents.forEach((e) => { if (e.venue_city) set.add(e.venue_city); });
     return Array.from(set).sort();
-  }, [events]);
+  }, [facetEvents]);
 
   const toggleCity = (city: string) => {
     setSelectedCities((prev) => (prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]));
   };
 
-  // Filter and sort
+  // Filter and sort (city filtering now happens in fetchEvents at the database level)
   const displayEvents = useMemo(() => {
     let filtered = events;
-
-    // City drill-down (client-side: search_events has no city param)
-    if (selectedCities.length > 0) {
-      filtered = filtered.filter((e) => e.venue_city && selectedCities.includes(e.venue_city));
-    }
 
     // Price filter
     if (priceFilter === 'free') filtered = filtered.filter(e => e.is_free);
@@ -324,7 +375,7 @@ export default function EventsPage() {
     }
 
     return sorted;
-  }, [events, selectedCities, priceFilter, sortBy]);
+  }, [events, priceFilter, sortBy]);
 
   const locationLabel = searchQuery.location && searchQuery.location !== 'all'
     ? metros.find((m) => m.value === searchQuery.location)?.label
