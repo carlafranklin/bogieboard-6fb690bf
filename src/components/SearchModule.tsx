@@ -17,7 +17,7 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useActiveMetros } from '@/hooks/useActiveMetros';
+import { useDiscoverableMetros } from '@/hooks/useDiscoverableMetros';
 import type { DateRange } from 'react-day-picker';
 
 interface SearchModuleProps {
@@ -66,7 +66,7 @@ function formatDateLabel(dateMode: 'single' | 'range', date: Date | undefined, d
 }
 
 export function SearchModule({ onSearch, compact = false, variant = 'default' }: SearchModuleProps) {
-  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
+  const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
   const [location, setLocation] = useState('');
   const [category, setCategory] = useState('all');
   const [dateMode, setDateMode] = useState<'single' | 'range'>('single');

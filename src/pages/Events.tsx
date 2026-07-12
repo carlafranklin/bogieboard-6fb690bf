@@ -8,7 +8,7 @@ import { SearchModule, SearchParams } from '@/components/SearchModule';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SaveEventButton } from '@/components/SaveEventButton';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
-import { useActiveMetros } from '@/hooks/useActiveMetros';
+import { useDiscoverableMetros } from '@/hooks/useDiscoverableMetros';
 import { categoryLabels } from '@/data/mockEvents';
 import { Button } from '@/components/ui/button';
 import {
@@ -118,7 +118,7 @@ function getEventImage(event: CanonicalEvent): string {
 
 export default function EventsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
+  const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
   const [selectedEvent, setSelectedEvent] = useState<CanonicalEvent | null>(null);
   const [events, setEvents] = useState<CanonicalEvent[]>([]);
   // City options must stay stable regardless of the current city selection (option 7a), so

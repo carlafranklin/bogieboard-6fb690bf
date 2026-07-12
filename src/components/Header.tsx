@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useActiveMetros } from '@/hooks/useActiveMetros';
+import { useDiscoverableMetros } from '@/hooks/useDiscoverableMetros';
 import { UserAccountMenu } from '@/components/UserAccountMenu';
 
 export function Header() {
@@ -24,7 +24,7 @@ export function Header() {
   const navigate = useNavigate();
 
   const [searchLocation, setSearchLocation] = useState('');
-  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
+  const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
 
   useEffect(() => {
     const loadRoles = (uid: string) => {
