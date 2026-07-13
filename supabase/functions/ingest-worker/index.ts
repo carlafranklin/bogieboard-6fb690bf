@@ -348,7 +348,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       const priceMax = priceRange?.max ?? null;
       // currency confirmed on canonical_events (TEXT NOT NULL DEFAULT 'USD')
       const currency = priceRange?.currency ?? "USD";
-      const isFree   = priceMin === 0 || title.toLowerCase().includes("free");
+      const isFree   = priceMin === 0;
 
       // ── 10d. Image / description / end time ───────────────────────────────
       const bestImage = ev.images
