@@ -76,44 +76,34 @@ export default function PartnerMemberPage() {
         if (error) throw error;
         toast({ title: 'Welcome back!' });
       } else {
-        // Signup flow
-        const { data: signUpData, error } = await supabase.auth.signUp({
+        // Signup flow — user_roles/partner_profiles/partner_employees are NOT created
+        // here. There is no active session yet (email confirmation is required), so
+        // those RLS-protected inserts would silently fail. Instead, the business/contact
+        // fields travel as auth user_metadata and are used to complete partner setup in
+        // AuthCallback.tsx once the user has confirmed their email and a real session exists.
+        const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              pending_partner_signup: true,
+              business_name: businessName,
+              address,
+              city,
+              state,
+              zip_code: zipCode,
+              phone,
+              industry_sector: industrySector,
+              industry_type: industryType,
+              contact_name: contactName,
+              contact_email: contactEmail,
+              contact_phone: contactPhone,
+            },
+          },
         });
         if (error) throw error;
-        if (signUpData.user) {
-          // Add partner role
-          await supabase.from('user_roles').insert({ user_id: signUpData.user.id, role: 'partner' });
-
-          // Create partner profile with slug
-          const slug = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-          const { data: profile } = await supabase.from('partner_profiles').insert({
-            user_id: signUpData.user.id,
-            business_name: businessName,
-            slug: slug + '-' + Date.now().toString(36),
-            address,
-            city,
-            state,
-            zip_code: zipCode,
-            phone,
-            industry_sector: industrySector || null,
-            industry_type: industryType || null,
-          }).select('id').single();
-
-          // Create contact as partner employee
-          if (profile) {
-            await supabase.from('partner_employees').insert({
-              partner_profile_id: profile.id,
-              name: contactName,
-              email: contactEmail,
-              phone: contactPhone,
-              title: 'Primary Contact',
-            });
-          }
-        }
-        toast({ title: 'Check your email', description: 'We sent you a confirmation link.' });
+        toast({ title: 'Check your email', description: 'Confirm your email to finish setting up your partner account.' });
       }
     } catch (error: any) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
@@ -297,7 +287,7 @@ export default function PartnerMemberPage() {
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="partner-email">Email</Label>
+                    <Label htmlFor="partner-email">Email *</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input id="partner-email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} className="pl-10 h-12" required />
@@ -306,7 +296,7 @@ export default function PartnerMemberPage() {
 
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <Label htmlFor="partner-password">Password</Label>
+                      <Label htmlFor="partner-password">Password *</Label>
                       {isLogin && <ForgotPasswordDialog />}
                     </div>
                     <div className="relative">
