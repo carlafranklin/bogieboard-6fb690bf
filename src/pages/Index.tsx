@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
-import { useActiveMetros } from '@/hooks/useActiveMetros';
+import { useDiscoverableMetros } from '@/hooks/useDiscoverableMetros';
 import { useDefaultMetro } from '@/hooks/useDefaultMetro';
 import { useHomeFeed } from '@/hooks/useHomeFeed';
 import { syncProfileOnLogin } from '@/lib/profileSync';
@@ -31,7 +31,7 @@ const Index = () => {
   const [metroOverride, setMetroOverride] = useState<string | null>(null);
 
   const { isSaved, toggleSave, loading: saveLoading } = useSavedEvents(userId);
-  const { metros, loading: metrosLoading, error: metrosError } = useActiveMetros();
+  const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
   const defaultMetro = useDefaultMetro(userId);
 
   const metroSlug = metroOverride ?? defaultMetro.metroSlug;

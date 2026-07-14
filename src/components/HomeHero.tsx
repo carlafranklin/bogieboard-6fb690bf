@@ -13,7 +13,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import type { ActiveMetro } from '@/hooks/useActiveMetros';
+import type { DiscoverableMetro } from '@/hooks/useDiscoverableMetros';
 import bogieBoardLogo from '@/assets/bogieboard-logo-v3.png';
 
 // Same value/label pairs used on /events, so a metro-level category picked
@@ -37,7 +37,7 @@ const CATEGORY_OPTIONS = [
 type DatePreset = 'any' | 'today' | 'weekend' | 'next-7-days' | 'custom';
 
 interface HomeHeroProps {
-  metros: ActiveMetro[];
+  metros: DiscoverableMetro[];
   metrosLoading: boolean;
   metrosError: boolean;
   metroSlug: string | null;

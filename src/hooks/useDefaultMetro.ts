@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { detectUserLocation, findNearestMetro, mapCityToMetro } from '@/lib/locationUtils';
-import { useActiveMetros } from './useActiveMetros';
+import { useDiscoverableMetros } from './useDiscoverableMetros';
 
 interface UseDefaultMetroResult {
   metroSlug: string | null;
@@ -19,7 +19,7 @@ interface UseDefaultMetroResult {
  * The Hero's own metro selector can always override this afterward.
  */
 export function useDefaultMetro(userId: string | null): UseDefaultMetroResult {
-  const { metros, loading: metrosLoading } = useActiveMetros();
+  const { metros, loading: metrosLoading } = useDiscoverableMetros();
   const [metroSlug, setMetroSlug] = useState<string | null>(null);
   const [metroName, setMetroName] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
@@ -78,7 +78,7 @@ export function useDefaultMetro(userId: string | null): UseDefaultMetroResult {
         }
       }
 
-      // 3. Fallback: first active metro, alphabetically (useActiveMetros already sorts by name).
+      // 3. Fallback: first discoverable metro, alphabetically (useDiscoverableMetros already sorts by name).
       if (!cancelled) {
         const fallback = metros[0];
         setMetroSlug(fallback?.value ?? null);
