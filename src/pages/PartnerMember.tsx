@@ -5,12 +5,14 @@ import { Mail, Lock, Eye, EyeOff, Building2, Users, Calendar, Star, TrendingUp, 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Header } from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
 
 import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { ForgotPasswordDialog } from '@/components/ForgotPasswordDialog';
+import { INDUSTRY_SECTOR_OPTIONS, INDUSTRY_TYPE_OPTIONS } from '@/data/partnerProfileOptions';
 
 const benefits = [
   { icon: Building2, title: 'Business Profile', description: 'Create a branded public page showcasing your business, location, and social links.' },
@@ -37,6 +39,8 @@ export default function PartnerMemberPage() {
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [phone, setPhone] = useState('');
+  const [industrySector, setIndustrySector] = useState('');
+  const [industryType, setIndustryType] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -61,6 +65,10 @@ export default function PartnerMemberPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLogin && (!industrySector || !industryType)) {
+      toast({ title: 'Missing information', description: 'Please select an industry sector and industry type.', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       if (isLogin) {
@@ -90,6 +98,8 @@ export default function PartnerMemberPage() {
             state,
             zip_code: zipCode,
             phone,
+            industry_sector: industrySector || null,
+            industry_type: industryType || null,
           }).select('id').single();
 
           // Create contact as partner employee
@@ -232,6 +242,27 @@ export default function PartnerMemberPage() {
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input id="biz-phone" type="tel" placeholder="(555) 123-4567" value={phone} onChange={e => setPhone(e.target.value)} className="pl-10 h-12" required />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="industry-sector">Industry Sector *</Label>
+                          <Select value={industrySector} onValueChange={setIndustrySector}>
+                            <SelectTrigger id="industry-sector" className="h-12"><SelectValue placeholder="Select sector" /></SelectTrigger>
+                            <SelectContent>
+                              {INDUSTRY_SECTOR_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="industry-type">Industry Type *</Label>
+                          <Select value={industryType} onValueChange={setIndustryType}>
+                            <SelectTrigger id="industry-type" className="h-12"><SelectValue placeholder="Select type" /></SelectTrigger>
+                            <SelectContent>
+                              {INDUSTRY_TYPE_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 

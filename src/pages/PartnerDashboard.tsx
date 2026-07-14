@@ -9,12 +9,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import type { Tables } from '@/integrations/supabase/types';
+import { EMPLOYEE_COUNT_OPTIONS, CUSTOMER_AUDIENCE_OPTIONS, MARKETING_GOAL_OPTIONS } from '@/data/partnerProfileOptions';
 
 type PartnerProfile = Tables<'partner_profiles'>;
 type PartnerEmployee = Tables<'partner_employees'>;
@@ -95,6 +97,12 @@ export default function PartnerDashboard() {
   }, [userId]);
 
   const generateSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+  const toggleProfileListValue = (field: 'primary_customer_audience' | 'primary_marketing_goal', value: string) => {
+    const current = (profile[field] as string[] | null) || [];
+    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+    setProfile({ ...profile, [field]: next });
+  };
 
   const handleSaveProfile = async () => {
     if (!userId) return;
@@ -459,6 +467,24 @@ export default function PartnerDashboard() {
                       </Select>
                     </div>
 
+                    {/* Business Details (optional) */}
+                    <div className="sm:col-span-2 pt-2"><h3 className="font-display text-sm font-semibold text-muted-foreground">Business Details (optional)</h3></div>
+                    <div className="space-y-2">
+                      <Label>Year Established</Label>
+                      <Input type="number" value={profile.year_established ?? ''} onChange={e => setProfile({ ...profile, year_established: e.target.value ? Number(e.target.value) : null })} placeholder="2020" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Number of Employees</Label>
+                      <Select value={profile.employee_count_range || ''} onValueChange={v => setProfile({ ...profile, employee_count_range: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select range" /></SelectTrigger>
+                        <SelectContent>{EMPLOYEE_COUNT_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Business Hours</Label>
+                      <Input value={profile.business_hours || ''} onChange={e => setProfile({ ...profile, business_hours: e.target.value })} placeholder="e.g. Mon–Fri 9am–5pm, Sat 10am–2pm" />
+                    </div>
+
                     {/* Social Media */}
                     <div className="sm:col-span-2 pt-2"><h3 className="font-display text-sm font-semibold text-muted-foreground">Social Media</h3></div>
                     <div className="space-y-2">
@@ -476,6 +502,10 @@ export default function PartnerDashboard() {
                     <div className="space-y-2">
                       <Label>LinkedIn</Label>
                       <Input value={profile.social_linkedin || ''} onChange={e => setProfile({ ...profile, social_linkedin: e.target.value })} placeholder="LinkedIn URL" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>TikTok</Label>
+                      <Input value={profile.social_tiktok || ''} onChange={e => setProfile({ ...profile, social_tiktok: e.target.value })} placeholder="TikTok URL" />
                     </div>
 
                     {/* Branding */}
@@ -501,6 +531,90 @@ export default function PartnerDashboard() {
                           <input type="file" accept="image/*" className="hidden" onChange={e => setCoverFile(e.target.files?.[0] || null)} />
                         </label>
                       </div>
+                    </div>
+
+                    {/* Primary Contact (optional) */}
+                    <div className="sm:col-span-2 pt-2"><h3 className="font-display text-sm font-semibold text-muted-foreground">Primary Contact (optional)</h3></div>
+                    <div className="space-y-2">
+                      <Label>Contact Name</Label>
+                      <Input value={profile.primary_contact_name || ''} onChange={e => setProfile({ ...profile, primary_contact_name: e.target.value })} placeholder="Full name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contact Email</Label>
+                      <Input type="email" value={profile.primary_contact_email || ''} onChange={e => setProfile({ ...profile, primary_contact_email: e.target.value })} placeholder="contact@business.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contact Phone</Label>
+                      <Input value={profile.primary_contact_phone || ''} onChange={e => setProfile({ ...profile, primary_contact_phone: e.target.value })} placeholder="(555) 123-4567" />
+                    </div>
+
+                    {/* Audience & Marketing (optional) */}
+                    <div className="sm:col-span-2 pt-2"><h3 className="font-display text-sm font-semibold text-muted-foreground">Audience &amp; Marketing (optional)</h3></div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Primary Customer Audience</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CUSTOMER_AUDIENCE_OPTIONS.map(opt => {
+                          const selected = ((profile.primary_customer_audience as string[] | null) || []).includes(opt);
+                          return (
+                            <button
+                              type="button"
+                              key={opt}
+                              onClick={() => toggleProfileListValue('primary_customer_audience', opt)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                selected ? 'bg-foreground text-background border-foreground' : 'bg-background text-foreground border-border hover:bg-muted'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {((profile.primary_customer_audience as string[] | null) || []).includes('Other') && (
+                        <Input
+                          className="mt-2"
+                          value={profile.primary_customer_audience_other || ''}
+                          onChange={e => setProfile({ ...profile, primary_customer_audience_other: e.target.value })}
+                          placeholder="Describe other audience"
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Primary Marketing Goal</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {MARKETING_GOAL_OPTIONS.map(opt => {
+                          const selected = ((profile.primary_marketing_goal as string[] | null) || []).includes(opt);
+                          return (
+                            <button
+                              type="button"
+                              key={opt}
+                              onClick={() => toggleProfileListValue('primary_marketing_goal', opt)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                                selected ? 'bg-foreground text-background border-foreground' : 'bg-background text-foreground border-border hover:bg-muted'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {((profile.primary_marketing_goal as string[] | null) || []).includes('Other') && (
+                        <Input
+                          className="mt-2"
+                          value={profile.primary_marketing_goal_other || ''}
+                          onChange={e => setProfile({ ...profile, primary_marketing_goal_other: e.target.value })}
+                          placeholder="Describe other goal"
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <Checkbox
+                        id="interested-in-promotions"
+                        checked={!!profile.interested_in_promotions}
+                        onCheckedChange={checked => setProfile({ ...profile, interested_in_promotions: checked === true })}
+                      />
+                      <Label htmlFor="interested-in-promotions" className="cursor-pointer font-normal">
+                        I'm interested in promotions or featured placement
+                      </Label>
                     </div>
                   </div>
                   <Button onClick={handleSaveProfile} disabled={saving} className="mt-6 bg-primary hover:bg-primary/90 text-primary-foreground">
