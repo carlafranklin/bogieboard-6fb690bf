@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { getSafeErrorMessage } from '@/lib/errorUtils';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const handled = useRef(false);
 
   useEffect(() => {
@@ -72,6 +75,89 @@ export default function AuthCallback() {
 
       if (Object.keys(finalUpdate).length > 0) {
         await supabase.from('profiles').update(finalUpdate).eq('user_id', user.id);
+      }
+
+      // Deferred partner setup — completes what PartnerMember.tsx's signup couldn't:
+      // at signup time there was no active session yet (email confirmation required),
+      // so the RLS-protected user_roles/partner_profiles/partner_employees inserts would
+      // have silently failed. The business/contact fields travel here as user_metadata.
+      // Each step checks for an existing row first, so this is safe to run on every
+      // callback (repeat visits, token refresh, etc.) without creating duplicates.
+      if (meta.pending_partner_signup) {
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('role', 'partner')
+          .maybeSingle();
+
+        if (!existingRole) {
+          const { error: roleError } = await supabase.from('user_roles').insert({ user_id: user.id, role: 'partner' });
+          if (roleError) {
+            toast({ title: 'Partner setup failed', description: getSafeErrorMessage(roleError), variant: 'destructive' });
+            navigate('/partner-member', { replace: true });
+            return;
+          }
+        }
+
+        const { data: existingPartnerProfile } = await supabase
+          .from('partner_profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        let partnerProfileId = existingPartnerProfile?.id ?? null;
+
+        if (!existingPartnerProfile) {
+          const slug = String(meta.business_name || 'partner')
+            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now().toString(36);
+          const { data: newProfile, error: profileError } = await supabase
+            .from('partner_profiles')
+            .insert({
+              user_id: user.id,
+              business_name: meta.business_name || '',
+              slug,
+              address: meta.address ?? null,
+              city: meta.city ?? null,
+              state: meta.state ?? null,
+              zip_code: meta.zip_code ?? null,
+              phone: meta.phone ?? null,
+              industry_sector: meta.industry_sector ?? null,
+              industry_type: meta.industry_type ?? null,
+            })
+            .select('id')
+            .single();
+          if (profileError || !newProfile) {
+            toast({ title: 'Partner setup failed', description: getSafeErrorMessage(profileError), variant: 'destructive' });
+            navigate('/partner-member', { replace: true });
+            return;
+          }
+          partnerProfileId = newProfile.id;
+        }
+
+        if (partnerProfileId) {
+          const { data: existingContact } = await supabase
+            .from('partner_employees')
+            .select('id')
+            .eq('partner_profile_id', partnerProfileId)
+            .eq('title', 'Primary Contact')
+            .maybeSingle();
+
+          if (!existingContact) {
+            const { error: employeeError } = await supabase.from('partner_employees').insert({
+              partner_profile_id: partnerProfileId,
+              name: meta.contact_name || '',
+              email: meta.contact_email || null,
+              phone: meta.contact_phone || null,
+              title: 'Primary Contact',
+            });
+            if (employeeError) {
+              toast({ title: 'Partner setup failed', description: getSafeErrorMessage(employeeError), variant: 'destructive' });
+              navigate('/partner-member', { replace: true });
+              return;
+            }
+          }
+        }
       }
 
       // Check roles
