@@ -27,6 +27,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { localStartOfDay, localEndOfDay, isSameLocalDay, parseDateParam } from '@/lib/dateRange';
 import type { DateRange } from 'react-day-picker';
 import {
   DropdownMenu,
@@ -131,12 +132,18 @@ export default function EventsPage() {
   const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
   const chipsRef = useRef<HTMLDivElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState({
-    location: searchParams.get('location') || '',
-    category: searchParams.get('category') || 'all',
-    date: undefined as Date | undefined,
-    dateRange: undefined as DateRange | undefined,
-    dateMode: 'single' as 'single' | 'range',
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const urlDate = parseDateParam(searchParams.get('date'));
+    const urlDateTo = parseDateParam(searchParams.get('dateTo'));
+    const urlIsRange = !!(urlDate && urlDateTo && !isSameLocalDay(urlDate, urlDateTo));
+
+    return {
+      location: searchParams.get('location') || '',
+      category: searchParams.get('category') || 'all',
+      date: urlDate && !urlIsRange ? urlDate : undefined,
+      dateRange: urlIsRange ? { from: urlDate, to: urlDateTo } as DateRange : undefined,
+      dateMode: (urlIsRange ? 'range' : 'single') as 'single' | 'range',
+    };
   });
 
   // Selected cities within the chosen metro (client-side drill-down; search_events RPC has no city param)
@@ -156,15 +163,21 @@ export default function EventsPage() {
     setSelectedCities([]);
   }, [searchQuery.location]);
 
-  // Keep the URL in sync so location/category/city filters survive navigation and reloads.
+  // Keep the URL in sync so location/category/city/date filters survive navigation and reloads.
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchQuery.location && searchQuery.location !== 'all') params.set('location', searchQuery.location);
     if (searchQuery.category && searchQuery.category !== 'all') params.set('category', searchQuery.category);
     if (selectedCities.length > 0) params.set('cities', selectedCities.join(','));
+    if (searchQuery.dateMode === 'single' && searchQuery.date) {
+      params.set('date', searchQuery.date.toISOString());
+    } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
+      params.set('date', searchQuery.dateRange.from.toISOString());
+      if (searchQuery.dateRange.to) params.set('dateTo', searchQuery.dateRange.to.toISOString());
+    }
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery.location, searchQuery.category, selectedCities]);
+  }, [searchQuery.location, searchQuery.category, searchQuery.date, searchQuery.dateRange, searchQuery.dateMode, selectedCities]);
 
   // Get auth state
   useEffect(() => {
@@ -226,16 +239,12 @@ export default function EventsPage() {
     let dateTo: string | undefined;
 
     if (searchQuery.dateMode === 'single' && searchQuery.date) {
-      dateFrom = searchQuery.date.toISOString();
-      const endOfDay = new Date(searchQuery.date);
-      endOfDay.setHours(23, 59, 59, 999);
-      dateTo = endOfDay.toISOString();
+      dateFrom = localStartOfDay(searchQuery.date).toISOString();
+      dateTo = localEndOfDay(searchQuery.date).toISOString();
     } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
-      dateFrom = searchQuery.dateRange.from.toISOString();
+      dateFrom = localStartOfDay(searchQuery.dateRange.from).toISOString();
       if (searchQuery.dateRange.to) {
-        const endOfDay = new Date(searchQuery.dateRange.to);
-        endOfDay.setHours(23, 59, 59, 999);
-        dateTo = endOfDay.toISOString();
+        dateTo = localEndOfDay(searchQuery.dateRange.to).toISOString();
       }
     }
     return { dateFrom, dateTo };

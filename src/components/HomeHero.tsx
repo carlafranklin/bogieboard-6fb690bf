@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import type { DiscoverableMetro } from '@/hooks/useDiscoverableMetros';
+import { getTodayRange, getWeekendRange, getNext7DaysRange, getCustomDayRange } from '@/lib/dateRange';
 import bogieBoardLogo from '@/assets/bogieboard-logo-v3.png';
 
 // Same value/label pairs used on /events, so a metro-level category picked
@@ -77,14 +78,24 @@ export function HomeHero({
     if (category !== 'all') params.set('category', category);
     if (selectedCities.length > 0) params.set('cities', selectedCities.join(','));
 
+    // All four presets resolve to a concrete {from, to} local-day boundary here,
+    // via the shared dateRange helpers, so /events receives the same signal
+    // regardless of which preset was picked — no preset is silently dropped.
+    const now = new Date();
+    let range: { from: Date; to: Date } | null = null;
     if (datePreset === 'today') {
-      const today = new Date();
-      params.set('date', today.toISOString());
+      range = getTodayRange(now);
+    } else if (datePreset === 'weekend') {
+      range = getWeekendRange(now);
+    } else if (datePreset === 'next-7-days') {
+      range = getNext7DaysRange(now);
     } else if (datePreset === 'custom' && customDate) {
-      params.set('date', customDate.toISOString());
+      range = getCustomDayRange(customDate);
     }
-    // 'weekend' and 'next-7-days' are left for /events' own date UI to refine;
-    // we don't duplicate that date-math here to avoid two sources of truth.
+    if (range) {
+      params.set('date', range.from.toISOString());
+      params.set('dateTo', range.to.toISOString());
+    }
 
     navigate(`/events?${params.toString()}`);
   };
