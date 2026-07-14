@@ -842,19 +842,32 @@ export type Database = {
       partner_profiles: {
         Row: {
           address: string | null
+          business_hours: string | null
           business_name: string
           category_id: string | null
           city: string | null
           cover_url: string | null
           created_at: string
           description: string | null
+          employee_count_range: string | null
           id: string
+          industry_sector: string | null
+          industry_type: string | null
+          interested_in_promotions: boolean | null
           logo_url: string | null
           phone: string | null
+          primary_contact_email: string | null
+          primary_contact_name: string | null
+          primary_contact_phone: string | null
+          primary_customer_audience: string[] | null
+          primary_customer_audience_other: string | null
+          primary_marketing_goal: string[] | null
+          primary_marketing_goal_other: string | null
           slug: string
           social_facebook: string | null
           social_instagram: string | null
           social_linkedin: string | null
+          social_tiktok: string | null
           social_twitter: string | null
           state: string | null
           subcategory_id: string | null
@@ -862,23 +875,37 @@ export type Database = {
           user_id: string
           verification_status: string
           website: string | null
+          year_established: number | null
           zip_code: string | null
         }
         Insert: {
           address?: string | null
+          business_hours?: string | null
           business_name: string
           category_id?: string | null
           city?: string | null
           cover_url?: string | null
           created_at?: string
           description?: string | null
+          employee_count_range?: string | null
           id?: string
+          industry_sector?: string | null
+          industry_type?: string | null
+          interested_in_promotions?: boolean | null
           logo_url?: string | null
           phone?: string | null
+          primary_contact_email?: string | null
+          primary_contact_name?: string | null
+          primary_contact_phone?: string | null
+          primary_customer_audience?: string[] | null
+          primary_customer_audience_other?: string | null
+          primary_marketing_goal?: string[] | null
+          primary_marketing_goal_other?: string | null
           slug: string
           social_facebook?: string | null
           social_instagram?: string | null
           social_linkedin?: string | null
+          social_tiktok?: string | null
           social_twitter?: string | null
           state?: string | null
           subcategory_id?: string | null
@@ -886,23 +913,37 @@ export type Database = {
           user_id: string
           verification_status?: string
           website?: string | null
+          year_established?: number | null
           zip_code?: string | null
         }
         Update: {
           address?: string | null
+          business_hours?: string | null
           business_name?: string
           category_id?: string | null
           city?: string | null
           cover_url?: string | null
           created_at?: string
           description?: string | null
+          employee_count_range?: string | null
           id?: string
+          industry_sector?: string | null
+          industry_type?: string | null
+          interested_in_promotions?: boolean | null
           logo_url?: string | null
           phone?: string | null
+          primary_contact_email?: string | null
+          primary_contact_name?: string | null
+          primary_contact_phone?: string | null
+          primary_customer_audience?: string[] | null
+          primary_customer_audience_other?: string | null
+          primary_marketing_goal?: string[] | null
+          primary_marketing_goal_other?: string | null
           slug?: string
           social_facebook?: string | null
           social_instagram?: string | null
           social_linkedin?: string | null
+          social_tiktok?: string | null
           social_twitter?: string | null
           state?: string | null
           subcategory_id?: string | null
@@ -910,6 +951,7 @@ export type Database = {
           user_id?: string
           verification_status?: string
           website?: string | null
+          year_established?: number | null
           zip_code?: string | null
         }
         Relationships: [
