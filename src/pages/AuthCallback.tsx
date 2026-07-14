@@ -79,22 +79,43 @@ export default function AuthCallback() {
 
       // Deferred partner setup — completes what PartnerMember.tsx's signup couldn't:
       // at signup time there was no active session yet (email confirmation required),
-      // so the RLS-protected user_roles/partner_profiles/partner_employees inserts would
-      // have silently failed. The business/contact fields travel here as user_metadata.
+      // so any RLS-protected writes would have silently failed. The business/contact
+      // fields travel here as user_metadata.
+      //
+      // Role granting goes through create_business_with_owner(), NOT a direct
+      // user_roles insert — trg_business_member_insert is the single authoritative
+      // source for partner role escalation (see bogieboard_phase2a_migration.sql);
+      // frontend code must never write to user_roles directly. partner_profiles is
+      // still synced afterward so PartnerDashboard.tsx and partner_events moderation
+      // (which read partner_profiles, not businesses) keep working unmodified.
+      //
       // Each step checks for an existing row first, so this is safe to run on every
       // callback (repeat visits, token refresh, etc.) without creating duplicates.
       if (meta.pending_partner_signup) {
-        const { data: existingRole } = await supabase
-          .from('user_roles')
-          .select('id')
+        const { data: existingMembership } = await supabase
+          .from('business_members')
+          .select('business_id')
           .eq('user_id', user.id)
-          .eq('role', 'partner')
+          .eq('role', 'owner')
           .maybeSingle();
 
-        if (!existingRole) {
-          const { error: roleError } = await supabase.from('user_roles').insert({ user_id: user.id, role: 'partner' });
-          if (roleError) {
-            toast({ title: 'Partner setup failed', description: getSafeErrorMessage(roleError), variant: 'destructive' });
+        if (!existingMembership) {
+          const businessSlug = String(meta.business_name || 'partner')
+            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now().toString(36);
+          const { error: rpcError } = await supabase.rpc('create_business_with_owner', {
+            p_name: meta.business_name || '',
+            p_slug: businessSlug,
+            p_contact_name: meta.contact_name ?? null,
+            p_contact_email: meta.contact_email ?? null,
+            p_contact_phone: meta.contact_phone ?? null,
+            p_address_line1: meta.address ?? null,
+            p_city: meta.city ?? null,
+            p_state: meta.state ?? null,
+            p_zip_code: meta.zip_code ?? null,
+            p_phone: meta.phone ?? null,
+          });
+          if (rpcError) {
+            toast({ title: 'Partner setup failed', description: getSafeErrorMessage(rpcError), variant: 'destructive' });
             navigate('/partner-member', { replace: true });
             return;
           }
