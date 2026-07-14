@@ -64,7 +64,36 @@ export default function AdminPage() {
   const [addingSubTo, setAddingSubTo] = useState<string | null>(null);
 
   // Stats state
-  const [stats, setStats] = useState({ totalUsers: 0, generalUsers: 0, businessUsers: 0, adminUsers: 0, totalEvents: 0, totalCategories: 0 });
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    generalUsers: 0,
+    businessUsers: 0,
+    adminUsers: 0,
+    unassignedUsers: 0,
+    totalCategories: 0,
+    // Canonical event inventory (the real, Ticketmaster-ingested pipeline — not the legacy `events` table)
+    totalCanonicalEvents: 0,
+    activeCanonicalEvents: 0,
+    upcomingActiveCanonicalEvents: 0,
+    expiredCanonicalEvents: 0,
+    cancelledCanonicalEvents: 0,
+    postponedCanonicalEvents: 0,
+    // Partners
+    totalPartnerProfiles: 0,
+    partnerProfilesWithAddress: 0,
+    // Partner-submitted events
+    partnerEventsPending: 0,
+    partnerEventsApproved: 0,
+    partnerEventsRejected: 0,
+    partnerEventsTotal: 0,
+    // Saved events
+    totalSavedEvents: 0,
+    // Feed health (all feed types — separate from the html-only Scrape Sources tab)
+    totalFeeds: 0,
+    enabledFeeds: 0,
+    feedsByType: {} as Record<string, number>,
+    feedsInBackoff: 0,
+  });
 
   // Scrape sources state
   const [scrapeSources, setScrapeSources] = useState<FeedRegistry[]>([]);
@@ -139,15 +168,22 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes, feedsRes, partnerEventsRes, eventCategoriesRes] = await Promise.all([
+    const [profilesRes, rolesRes, catsRes, subsRes, feedsRes, partnerEventsRes, eventCategoriesRes, canonicalEventsRes, partnerProfilesRes, savedEventsRes, allFeedsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
       supabase.from('categories').select('*').order('display_order'),
       supabase.from('subcategories').select('*').order('name'),
-      supabase.from('events').select('id'),
       supabase.from('feed_registry').select('*').eq('feed_type', 'html').order('feed_name'),
       supabase.from('partner_events').select('*, partner_profiles!inner(business_name, slug), categories(name)').order('created_at', { ascending: false }),
       supabase.from('event_categories').select('category_id'),
+      // Real event inventory (Ticketmaster-ingested) — replaces the legacy `events` table,
+      // which is a disconnected pre-ingestion schema and was producing a meaningless count.
+      supabase.from('canonical_events').select('status, start_time'),
+      supabase.from('partner_profiles').select('address'),
+      supabase.from('saved_events').select('id', { count: 'exact', head: true }),
+      // Unfiltered feed_registry, for platform-wide feed health — distinct from the
+      // html-only `feedsRes` above, which stays scoped to the Scrape Sources tab.
+      supabase.from('feed_registry').select('enabled, feed_type, backoff_until'),
     ]);
 
     // Linked-event counts per category, used to block unsafe deletes below.
@@ -174,13 +210,48 @@ export default function AdminPage() {
     setPendingEvents((partnerEventsRes.data || []) as unknown as PartnerEventWithProfile[]);
 
     const roleCount = (role: string) => allRoles.filter(r => r.role === role).length;
+    const usersWithAnyRole = new Set(allRoles.map(r => r.user_id));
+    const unassignedUsers = profiles.filter(p => !usersWithAnyRole.has(p.user_id)).length;
+
+    const canonicalEvents = canonicalEventsRes.data || [];
+    const now = new Date();
+    const upcomingActiveCanonicalEvents = canonicalEvents.filter(
+      e => e.status === 'active' && e.start_time && new Date(e.start_time) >= now
+    ).length;
+
+    const partnerProfiles = partnerProfilesRes.data || [];
+    const partnerEventsAll = partnerEventsRes.data || [];
+
+    const feedsAll = allFeedsRes.data || [];
+    const feedsByType: Record<string, number> = {};
+    for (const feed of feedsAll) {
+      feedsByType[feed.feed_type] = (feedsByType[feed.feed_type] ?? 0) + 1;
+    }
+
     setStats({
       totalUsers: profiles.length,
       generalUsers: roleCount('general'),
       businessUsers: roleCount('business'),
       adminUsers: roleCount('admin'),
-      totalEvents: eventsRes.data?.length || 0,
+      unassignedUsers,
       totalCategories: cats.length,
+      totalCanonicalEvents: canonicalEvents.length,
+      activeCanonicalEvents: canonicalEvents.filter(e => e.status === 'active').length,
+      upcomingActiveCanonicalEvents,
+      expiredCanonicalEvents: canonicalEvents.filter(e => e.status === 'expired').length,
+      cancelledCanonicalEvents: canonicalEvents.filter(e => e.status === 'cancelled').length,
+      postponedCanonicalEvents: canonicalEvents.filter(e => e.status === 'postponed').length,
+      totalPartnerProfiles: partnerProfiles.length,
+      partnerProfilesWithAddress: partnerProfiles.filter(p => !!p.address).length,
+      partnerEventsPending: partnerEventsAll.filter(e => e.status === 'pending').length,
+      partnerEventsApproved: partnerEventsAll.filter(e => e.status === 'approved').length,
+      partnerEventsRejected: partnerEventsAll.filter(e => e.status === 'rejected').length,
+      partnerEventsTotal: partnerEventsAll.length,
+      totalSavedEvents: savedEventsRes.count ?? 0,
+      totalFeeds: feedsAll.length,
+      enabledFeeds: feedsAll.filter(f => f.enabled).length,
+      feedsByType,
+      feedsInBackoff: feedsAll.filter(f => f.backoff_until && new Date(f.backoff_until) > now).length,
     });
 
     setLoading(false);
@@ -691,7 +762,7 @@ export default function AdminPage() {
                 { label: 'General', value: stats.generalUsers, color: 'bg-green-light text-green-dark' },
                 { label: 'Business', value: stats.businessUsers, color: 'bg-purple-light text-purple-dark' },
                 { label: 'Admins', value: stats.adminUsers, color: 'bg-yellow-light text-yellow-foreground' },
-                { label: 'Events', value: stats.totalEvents, color: 'bg-secondary/10 text-secondary' },
+                { label: 'Active Events', value: stats.activeCanonicalEvents, color: 'bg-secondary/10 text-secondary' },
                 { label: 'Scrape Sources', value: scrapeSources.length, color: 'bg-muted text-muted-foreground' },
               ].map(stat => (
                 <div key={stat.label} className="bg-card rounded-xl border border-border p-4 text-center">
@@ -1245,51 +1316,135 @@ export default function AdminPage() {
 
               {/* Stats Tab */}
               <TabsContent value="stats">
-                <div className="bg-card rounded-xl border border-border p-6">
-                  <h2 className="font-display text-lg font-semibold mb-4">Platform Statistics</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <h3 className="font-medium text-foreground">User Breakdown</h3>
+                <div className="bg-card rounded-xl border border-border p-6 space-y-8">
+                  <div>
+                    <h2 className="font-display text-lg font-semibold mb-4">Platform Statistics</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <h3 className="font-medium text-foreground">User Breakdown</h3>
+                        {[
+                          { label: 'General Users', value: stats.generalUsers, pct: stats.totalUsers ? Math.round((stats.generalUsers / stats.totalUsers) * 100) : 0 },
+                          { label: 'Business Users', value: stats.businessUsers, pct: stats.totalUsers ? Math.round((stats.businessUsers / stats.totalUsers) * 100) : 0 },
+                          { label: 'Admin Users', value: stats.adminUsers, pct: stats.totalUsers ? Math.round((stats.adminUsers / stats.totalUsers) * 100) : 0 },
+                          ...(stats.unassignedUsers > 0
+                            ? [{ label: 'Unassigned', value: stats.unassignedUsers, pct: stats.totalUsers ? Math.round((stats.unassignedUsers / stats.totalUsers) * 100) : 0 }]
+                            : []),
+                        ].map(item => (
+                          <div key={item.label}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-muted-foreground">{item.label}</span>
+                              <span className="font-medium">{item.value} ({item.pct}%)</span>
+                            </div>
+                            <div className="h-2 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${item.pct}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                        <p className="text-xs text-muted-foreground">Total: {stats.totalUsers} users</p>
+                      </div>
+                      <div className="space-y-3">
+                        <h3 className="font-medium text-foreground">Content</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-muted/50 rounded-lg p-4 text-center">
+                            <p className="text-3xl font-bold text-foreground">{stats.totalCategories}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Categories</p>
+                          </div>
+                          <div className="bg-muted/50 rounded-lg p-4 text-center">
+                            <p className="text-3xl font-bold text-foreground">{subcategories.length}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Subcategories</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Note: Site visit analytics (bounce rate, page views) will be available via external analytics integration.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-foreground mb-3">Canonical Event Inventory</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                       {[
-                        { label: 'General Users', value: stats.generalUsers, pct: stats.totalUsers ? Math.round((stats.generalUsers / stats.totalUsers) * 100) : 0 },
-                        { label: 'Business Users', value: stats.businessUsers, pct: stats.totalUsers ? Math.round((stats.businessUsers / stats.totalUsers) * 100) : 0 },
-                        { label: 'Admin Users', value: stats.adminUsers, pct: stats.totalUsers ? Math.round((stats.adminUsers / stats.totalUsers) * 100) : 0 },
+                        { label: 'Total', value: stats.totalCanonicalEvents },
+                        { label: 'Active', value: stats.activeCanonicalEvents },
+                        { label: 'Upcoming Active', value: stats.upcomingActiveCanonicalEvents },
+                        { label: 'Expired', value: stats.expiredCanonicalEvents },
+                        { label: 'Cancelled', value: stats.cancelledCanonicalEvents },
+                        { label: 'Postponed', value: stats.postponedCanonicalEvents },
                       ].map(item => (
-                        <div key={item.label}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground">{item.label}</span>
-                            <span className="font-medium">{item.value} ({item.pct}%)</span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${item.pct}%` }} />
-                          </div>
+                        <div key={item.label} className="bg-muted/50 rounded-lg p-4 text-center">
+                          <p className="text-2xl font-bold text-foreground">{item.value}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{item.label}</p>
                         </div>
                       ))}
                     </div>
-                    <div className="space-y-3">
-                      <h3 className="font-medium text-foreground">Content</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="font-medium text-foreground mb-3">Partners &amp; Businesses</h3>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-muted/50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-foreground">{stats.totalEvents}</p>
-                          <p className="text-xs text-muted-foreground mt-1">Total Events</p>
+                          <p className="text-2xl font-bold text-foreground">{stats.totalPartnerProfiles}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Partner Profiles</p>
                         </div>
                         <div className="bg-muted/50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-foreground">{stats.totalCategories}</p>
-                          <p className="text-xs text-muted-foreground mt-1">Categories</p>
-                        </div>
-                        <div className="bg-muted/50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-foreground">{subcategories.length}</p>
-                          <p className="text-xs text-muted-foreground mt-1">Subcategories</p>
-                        </div>
-                        <div className="bg-muted/50 rounded-lg p-4 text-center">
-                          <p className="text-3xl font-bold text-foreground">{scrapeSources.length}</p>
-                          <p className="text-xs text-muted-foreground mt-1">Scrape Sources</p>
+                          <p className="text-2xl font-bold text-foreground">{stats.partnerProfilesWithAddress}</p>
+                          <p className="text-xs text-muted-foreground mt-1">With Address</p>
                         </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Note: Site visit analytics (bounce rate, page views) will be available via external analytics integration.
-                      </p>
                     </div>
+                    <div>
+                      <h3 className="font-medium text-foreground mb-3">Saved Events</h3>
+                      <div className="bg-muted/50 rounded-lg p-4 text-center max-w-[calc(50%-0.5rem)]">
+                        <p className="text-2xl font-bold text-foreground">{stats.totalSavedEvents}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Total Saved</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-foreground mb-3">Partner-Submitted Events</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {[
+                        { label: 'Pending', value: stats.partnerEventsPending },
+                        { label: 'Approved', value: stats.partnerEventsApproved },
+                        { label: 'Rejected', value: stats.partnerEventsRejected },
+                        { label: 'Total', value: stats.partnerEventsTotal },
+                      ].map(item => (
+                        <div key={item.label} className="bg-muted/50 rounded-lg p-4 text-center">
+                          <p className="text-2xl font-bold text-foreground">{item.value}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{item.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-foreground mb-3">Feed Health</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
+                      <div className="bg-muted/50 rounded-lg p-4 text-center">
+                        <p className="text-2xl font-bold text-foreground">{stats.totalFeeds}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Total Feeds</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-lg p-4 text-center">
+                        <p className="text-2xl font-bold text-foreground">{stats.enabledFeeds}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Enabled</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-lg p-4 text-center">
+                        <p className="text-2xl font-bold text-foreground">{stats.feedsInBackoff}</p>
+                        <p className="text-xs text-muted-foreground mt-1">In Backoff</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-lg p-4 text-center">
+                        <p className="text-2xl font-bold text-foreground">{scrapeSources.length}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Scrape Sources (HTML)</p>
+                      </div>
+                    </div>
+                    {Object.keys(stats.feedsByType).length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        By type: {Object.entries(stats.feedsByType).map(([type, count]) => `${type} (${count})`).join(', ')}
+                      </p>
+                    )}
                   </div>
                 </div>
               </TabsContent>
