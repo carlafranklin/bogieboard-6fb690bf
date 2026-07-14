@@ -86,6 +86,56 @@ export type Database = {
         }
         Relationships: []
       }
+      business_members: {
+        Row: {
+          business_id: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          contact_title: string | null
+          created_at: string
+          id: string
+          invited_by: string | null
+          joined_at: string
+          role: Database["public"]["Enums"]["business_member_role"]
+          user_id: string | null
+        }
+        Insert: {
+          business_id: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_title?: string | null
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          joined_at?: string
+          role?: Database["public"]["Enums"]["business_member_role"]
+          user_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_title?: string | null
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          joined_at?: string
+          role?: Database["public"]["Enums"]["business_member_role"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_members_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       canonical_events: {
         Row: {
           age_restriction: number | null
@@ -1486,6 +1536,28 @@ export type Database = {
         }
         Returns: undefined
       }
+      create_business_with_owner: {
+        Args: {
+          p_name: string
+          p_slug: string
+          p_description?: string | null
+          p_category_id?: string | null
+          p_subcategory_id?: string | null
+          p_contact_name?: string | null
+          p_contact_email?: string | null
+          p_contact_phone?: string | null
+          p_address_line1?: string | null
+          p_city?: string | null
+          p_state?: string | null
+          p_zip_code?: string | null
+          p_phone?: string | null
+          p_member_title?: string | null
+        }
+        Returns: {
+          out_business_id: string
+          out_slug: string
+        }[]
+      }
       generate_event_hash: {
         Args: {
           p_city: string
@@ -1579,6 +1651,7 @@ export type Database = {
     }
     Enums: {
       app_role: "general" | "business" | "admin" | "partner"
+      business_member_role: "owner" | "admin" | "staff"
       event_status: "active" | "cancelled" | "postponed" | "expired"
       feed_type: "rss" | "ical" | "auto" | "html"
       gender_type: "male" | "female" | "nonbinary" | "other"
@@ -1715,6 +1788,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["general", "business", "admin", "partner"],
+      business_member_role: ["owner", "admin", "staff"],
       event_status: ["active", "cancelled", "postponed", "expired"],
       feed_type: ["rss", "ical", "auto", "html"],
       gender_type: ["male", "female", "nonbinary", "other"],
