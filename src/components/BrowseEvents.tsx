@@ -37,7 +37,11 @@ interface BrowseEvent {
   category_names: string[] | null;
 }
 
-export function BrowseEvents() {
+interface BrowseEventsProps {
+  onSelectEvent?: (event: BrowseEvent) => void;
+}
+
+export function BrowseEvents({ onSelectEvent }: BrowseEventsProps) {
   const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
   const [events, setEvents] = useState<BrowseEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +122,8 @@ export function BrowseEvents() {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.03 }}
-                className="group bg-card rounded-xl overflow-hidden card-hover"
+                className="group bg-card rounded-xl overflow-hidden card-hover cursor-pointer"
+                onClick={() => onSelectEvent?.(event)}
               >
                 {/* Image */}
                 <div className="aspect-[16/10] relative overflow-hidden bg-muted">

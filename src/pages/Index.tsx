@@ -46,6 +46,7 @@ const Index = () => {
   };
 
   const isLoggedIn = authChecked && !!userId;
+  const selectedEventId = selectedEvent?.event_id ?? selectedEvent?.id ?? null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -60,6 +61,7 @@ const Index = () => {
               isSaved={isSaved}
               onToggleSave={(id) => toggleSave(id, 'canonical')}
               savingLoading={savingLoading}
+              onSelectEvent={(event) => setSelectedEvent({ ...event, event_id: (event as any).id })}
             />
             <SavedEventsHistory userId={userId!} />
           </>
@@ -68,7 +70,7 @@ const Index = () => {
             {/* Logged-out: content-first browsing experience */}
             <HeroSection onSearch={handleSearch} />
             <EventShowcase />
-            <BrowseEvents />
+            <BrowseEvents onSelectEvent={setSelectedEvent} />
           </>
         )}
       </main>
@@ -78,6 +80,10 @@ const Index = () => {
       <EventDetailModal
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        userId={userId}
+        isSaved={selectedEventId ? isSaved(selectedEventId) : false}
+        onToggleSave={selectedEventId ? () => toggleSave(selectedEventId, 'canonical') : undefined}
+        saveLoading={savingLoading}
       />
     </div>
   );
