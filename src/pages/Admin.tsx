@@ -37,12 +37,6 @@ interface UserWithRole extends Profile {
   roles: string[];
 }
 
-const METRO_OPTIONS = [
-  { slug: 'charlotte-nc', label: 'Charlotte, NC Metro' },
-  { slug: 'greensboro-nc', label: 'Greensboro, NC Metro' },
-  { slug: 'raleigh-durham-nc', label: 'Raleigh/Durham, NC Metro' },
-];
-
 export default function AdminPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -556,7 +550,9 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (isAdmin && activeTab === 'metros') {
+    // Scrape Sources needs the same metro list (for its Add-Source dropdown and
+    // existing-row metro badges), so it loads on either tab, not just Metro Areas.
+    if (isAdmin && (activeTab === 'metros' || activeTab === 'scrape')) {
       loadMetros();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1046,8 +1042,8 @@ export default function AdminPage() {
                     <Select value={newFeedMetro} onValueChange={setNewFeedMetro}>
                       <SelectTrigger><SelectValue placeholder="Metro area" /></SelectTrigger>
                       <SelectContent>
-                        {METRO_OPTIONS.map(m => (
-                          <SelectItem key={m.slug} value={m.slug}>{m.label}</SelectItem>
+                        {metros.map(m => (
+                          <SelectItem key={m.slug} value={m.slug}>{m.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1083,7 +1079,7 @@ export default function AdminPage() {
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
-                                {METRO_OPTIONS.find(m => m.slug === source.metro_area_slug)?.label.split(',')[0] || source.metro_area_slug}
+                                {metros.find(m => m.slug === source.metro_area_slug)?.name || source.metro_area_slug}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-sm">{source.default_city || '—'}</TableCell>
