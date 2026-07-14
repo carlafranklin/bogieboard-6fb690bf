@@ -56,6 +56,7 @@ export default function AdminPage() {
   // Categories state
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [categoryEventCounts, setCategoryEventCounts] = useState<Map<string, number>>(new Map());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -138,7 +139,7 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes, feedsRes, partnerEventsRes] = await Promise.all([
+    const [profilesRes, rolesRes, catsRes, subsRes, eventsRes, feedsRes, partnerEventsRes, eventCategoriesRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
       supabase.from('categories').select('*').order('display_order'),
@@ -146,7 +147,15 @@ export default function AdminPage() {
       supabase.from('events').select('id'),
       supabase.from('feed_registry').select('*').eq('feed_type', 'html').order('feed_name'),
       supabase.from('partner_events').select('*, partner_profiles!inner(business_name, slug), categories(name)').order('created_at', { ascending: false }),
+      supabase.from('event_categories').select('category_id'),
     ]);
+
+    // Linked-event counts per category, used to block unsafe deletes below.
+    const eventCategoryCounts = new Map<string, number>();
+    for (const row of eventCategoriesRes.data || []) {
+      eventCategoryCounts.set(row.category_id, (eventCategoryCounts.get(row.category_id) ?? 0) + 1);
+    }
+    setCategoryEventCounts(eventCategoryCounts);
 
     // Merge profiles with roles
     const profiles = profilesRes.data || [];
@@ -300,8 +309,9 @@ export default function AdminPage() {
       return;
     }
     const name = result.data;
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const { error } = await supabase.from('categories').update({ name, slug }).eq('id', id);
+    // Slug is intentionally left untouched here — it's the stable identifier every
+    // category filter (search_events, frontend chips) depends on. Only set on create.
+    const { error } = await supabase.from('categories').update({ name }).eq('id', id);
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
@@ -312,6 +322,25 @@ export default function AdminPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    // Re-check the linked-event count against the database immediately before deleting,
+    // rather than trusting already-rendered state, since categories.id cascades to
+    // event_categories on delete (ON DELETE CASCADE).
+    const { count, error: countError } = await supabase
+      .from('event_categories')
+      .select('event_id', { count: 'exact', head: true })
+      .eq('category_id', id);
+    if (countError) {
+      toast({ title: 'Error', description: getSafeErrorMessage(countError), variant: 'destructive' });
+      return;
+    }
+    if ((count ?? 0) > 0) {
+      toast({
+        title: 'Cannot delete category',
+        description: `${count} event${count === 1 ? ' is' : 's are'} still linked to this category. Recategorize or remove them first.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     const { error } = await supabase.from('categories').delete().eq('id', id);
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
@@ -795,6 +824,7 @@ export default function AdminPage() {
                   <div className="space-y-4">
                     {categories.map(cat => {
                       const subs = subcategories.filter(s => s.category_id === cat.id);
+                      const linkedEventCount = categoryEventCounts.get(cat.id) ?? 0;
                       return (
                         <div key={cat.id} className="border border-border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
@@ -814,7 +844,12 @@ export default function AdminPage() {
                                 </Button>
                               </div>
                             ) : (
-                              <h3 className="font-semibold text-foreground">{cat.name}</h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-foreground">{cat.name}</h3>
+                                <Badge variant="secondary" className="text-xs font-normal">
+                                  {linkedEventCount} {linkedEventCount === 1 ? 'event' : 'events'} linked
+                                </Badge>
+                              </div>
                             )}
                             <div className="flex gap-1">
                               <Button
@@ -824,25 +859,37 @@ export default function AdminPage() {
                               >
                                 <Pencil className="w-4 h-4" />
                               </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="icon" variant="ghost" className="text-destructive">
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete "{cat.name}"?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will permanently delete this category and may affect associated events. This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDeleteCategory(cat.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              {linkedEventCount > 0 ? (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-destructive opacity-40 cursor-not-allowed"
+                                  disabled
+                                  title={`Cannot delete: ${linkedEventCount} event${linkedEventCount === 1 ? ' is' : 's are'} still linked to this category.`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              ) : (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="text-destructive">
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete "{cat.name}"?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        No events are currently linked to this category. This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => handleDeleteCategory(cat.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
                             </div>
                           </div>
 
