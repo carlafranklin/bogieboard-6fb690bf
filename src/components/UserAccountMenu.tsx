@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Settings, User, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Building2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,9 +14,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface UserAccountMenuProps {
   userId: string;
+  /** Partner accounts get routed to their business dashboard instead of the general consumer profile. */
+  isPartner?: boolean;
 }
 
-export function UserAccountMenu({ userId }: UserAccountMenuProps) {
+export function UserAccountMenu({ userId, isPartner = false }: UserAccountMenuProps) {
   const navigate = useNavigate();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [initials, setInitials] = useState('');
@@ -76,15 +78,21 @@ export function UserAccountMenu({ userId }: UserAccountMenuProps) {
   const isEmoji = avatarUrl ? avatarUrl.length <= 4 || /^\p{Emoji}/u.test(avatarUrl) : false;
   const showImage = avatarUrl && !isEmoji && !imgError;
 
+  // Partner accounts get routed to their business dashboard, not the general
+  // consumer profile — surfacing the consumer profile as the primary action
+  // reads as wrong for a business account.
+  const profilePath = isPartner ? '/partner-dashboard' : '/profile';
+  const profileLabel = isPartner ? 'Business Profile' : 'Update Profile';
+
   return (
     <div className="flex items-center gap-2.5">
       <Button
         size="sm"
-        onClick={(e) => { e.stopPropagation(); navigate('/profile'); }}
+        onClick={(e) => { e.stopPropagation(); navigate(profilePath); }}
         className="bg-accent text-accent-foreground hover:bg-accent/90 text-xs font-semibold rounded-full px-3.5 h-8 shadow-sm transition-all hover:shadow-md active:scale-95"
       >
-        <Settings className="w-3.5 h-3.5 mr-1" />
-        Update Profile
+        {isPartner ? <Building2 className="w-3.5 h-3.5 mr-1" /> : <Settings className="w-3.5 h-3.5 mr-1" />}
+        {profileLabel}
       </Button>
 
       <Button
@@ -127,18 +135,18 @@ export function UserAccountMenu({ userId }: UserAccountMenuProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-lg border-border/60">
           <DropdownMenuItem
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate(profilePath)}
             className="cursor-pointer rounded-lg focus:bg-primary/5"
           >
-            <User className="w-4 h-4 mr-2 text-primary" />
-            My Profile
+            {isPartner ? <Building2 className="w-4 h-4 mr-2 text-primary" /> : <User className="w-4 h-4 mr-2 text-primary" />}
+            {isPartner ? 'Business Profile' : 'My Profile'}
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate(profilePath)}
             className="cursor-pointer rounded-lg focus:bg-primary/5"
           >
-            <Settings className="w-4 h-4 mr-2 text-primary" />
-            Update Profile
+            {isPartner ? <Building2 className="w-4 h-4 mr-2 text-primary" /> : <Settings className="w-4 h-4 mr-2 text-primary" />}
+            {isPartner ? 'Partner Dashboard' : 'Update Profile'}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
