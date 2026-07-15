@@ -145,6 +145,9 @@ export default function AuthCallback() {
               phone: meta.phone ?? null,
               industry_sector: meta.industry_sector ?? null,
               industry_type: meta.industry_type ?? null,
+              primary_contact_name: meta.contact_name ?? null,
+              primary_contact_email: meta.contact_email ?? null,
+              primary_contact_phone: meta.contact_phone ?? null,
             })
             .select('id')
             .single();

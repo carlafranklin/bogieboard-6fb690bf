@@ -737,10 +737,10 @@ export default function PartnerDashboard() {
                     </div>
                     <div className="space-y-2">
                       <Label>Age Guidance</Label>
-                      <Select value={String(newEvent.age_restriction ?? '')} onValueChange={v => setNewEvent({ ...newEvent, age_restriction: v ? Number(v) : null })}>
+                      <Select value={newEvent.age_restriction ? String(newEvent.age_restriction) : 'any'} onValueChange={v => setNewEvent({ ...newEvent, age_restriction: v === 'any' ? null : Number(v) })}>
                         <SelectTrigger><SelectValue placeholder="All Ages" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All Ages</SelectItem>
+                          <SelectItem value="any">All Ages</SelectItem>
                           <SelectItem value="18">18+</SelectItem>
                           <SelectItem value="21">21+</SelectItem>
                         </SelectContent>
