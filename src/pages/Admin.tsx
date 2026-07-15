@@ -51,6 +51,10 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [categoryEventCounts, setCategoryEventCounts] = useState<Map<string, number>>(new Map());
+  // user_id -> business name, for the Users tab Business column. partner_profiles first
+  // (the table PartnerDashboard.tsx actually manages), falling back to the newer
+  // businesses/business_members model when no partner_profiles row exists.
+  const [partnerBusinessNames, setPartnerBusinessNames] = useState<Map<string, string>>(new Map());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -162,7 +166,7 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, rolesRes, catsRes, subsRes, feedsRes, partnerEventsRes, eventCategoriesRes, canonicalEventsRes, partnerProfilesRes, savedEventsRes, allFeedsRes] = await Promise.all([
+    const [profilesRes, rolesRes, catsRes, subsRes, feedsRes, partnerEventsRes, eventCategoriesRes, canonicalEventsRes, partnerProfilesRes, savedEventsRes, allFeedsRes, businessOwnersRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
       supabase.from('categories').select('*').order('display_order'),
@@ -173,11 +177,14 @@ export default function AdminPage() {
       // Real event inventory (Ticketmaster-ingested) — replaces the legacy `events` table,
       // which is a disconnected pre-ingestion schema and was producing a meaningless count.
       supabase.from('canonical_events').select('status, start_time'),
-      supabase.from('partner_profiles').select('address'),
+      supabase.from('partner_profiles').select('user_id, business_name, address'),
       supabase.from('saved_events').select('id', { count: 'exact', head: true }),
       // Unfiltered feed_registry, for platform-wide feed health — distinct from the
       // html-only `feedsRes` above, which stays scoped to the Scrape Sources tab.
       supabase.from('feed_registry').select('enabled, feed_type, backoff_until'),
+      // Fallback business name source for the Users tab: owners whose partner_profiles
+      // row doesn't exist yet, sourced from the newer businesses/business_members model.
+      supabase.from('business_members').select('user_id, businesses(name)').eq('role', 'owner'),
     ]);
 
     // Linked-event counts per category, used to block unsafe deletes below.
@@ -215,6 +222,19 @@ export default function AdminPage() {
 
     const partnerProfiles = partnerProfilesRes.data || [];
     const partnerEventsAll = partnerEventsRes.data || [];
+
+    // Business name lookup for the Users tab: partner_profiles first (the table
+    // PartnerDashboard.tsx actually manages), falling back to businesses/business_members
+    // for owners whose partner_profiles row doesn't exist yet.
+    const businessNames = new Map<string, string>();
+    for (const bo of businessOwnersRes.data || []) {
+      const name = (bo as any).businesses?.name;
+      if (bo.user_id && name) businessNames.set(bo.user_id, name);
+    }
+    for (const pp of partnerProfiles as { user_id: string; business_name: string }[]) {
+      if (pp.user_id && pp.business_name) businessNames.set(pp.user_id, pp.business_name);
+    }
+    setPartnerBusinessNames(businessNames);
 
     const feedsAll = allFeedsRes.data || [];
     const feedsByType: Record<string, number> = {};
@@ -793,6 +813,7 @@ export default function AdminPage() {
                         <TableRow>
                           <TableHead>Name</TableHead>
                           <TableHead>Email</TableHead>
+                          <TableHead>Business</TableHead>
                           <TableHead>Roles</TableHead>
                           <TableHead>Manage Role</TableHead>
                           <TableHead>Joined</TableHead>
@@ -807,6 +828,9 @@ export default function AdminPage() {
                                 : '—'}
                             </TableCell>
                             <TableCell>{user.email || '—'}</TableCell>
+                            <TableCell>
+                              {user.roles.includes('partner') ? (partnerBusinessNames.get(user.user_id) || '—') : '—'}
+                            </TableCell>
                             <TableCell>
                               <div className="flex gap-1 flex-wrap">
                                 {user.roles.map(role => (
