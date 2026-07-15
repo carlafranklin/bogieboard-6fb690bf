@@ -147,7 +147,7 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
-                <UserAccountMenu userId={userId} />
+                <UserAccountMenu userId={userId} isPartner={isPartner} />
               </>
             ) : (
               <Link to="/auth">
@@ -216,10 +216,10 @@ export function Header() {
                   <div className="flex gap-2 mt-2">
                     <Button
                       size="sm"
-                      onClick={() => { navigate('/profile'); setIsMenuOpen(false); }}
+                      onClick={() => { navigate(isPartner ? '/partner-dashboard' : '/profile'); setIsMenuOpen(false); }}
                       className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 text-xs font-semibold rounded-full h-9"
                     >
-                      Update Profile
+                      {isPartner ? 'Business Profile' : 'Update Profile'}
                     </Button>
                     <Button
                       size="sm"
