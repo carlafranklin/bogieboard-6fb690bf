@@ -141,13 +141,17 @@ export function UserAccountMenu({ userId, isPartner = false }: UserAccountMenuPr
             {isPartner ? <Building2 className="w-4 h-4 mr-2 text-primary" /> : <User className="w-4 h-4 mr-2 text-primary" />}
             {isPartner ? 'Business Profile' : 'My Profile'}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => navigate(profilePath)}
-            className="cursor-pointer rounded-lg focus:bg-primary/5"
-          >
-            {isPartner ? <Building2 className="w-4 h-4 mr-2 text-primary" /> : <Settings className="w-4 h-4 mr-2 text-primary" />}
-            {isPartner ? 'Partner Dashboard' : 'Update Profile'}
-          </DropdownMenuItem>
+          {/* Partners only get one profile-facing dropdown action (Business Profile,
+              above) — a second item here would just be a duplicate route. */}
+          {!isPartner && (
+            <DropdownMenuItem
+              onClick={() => navigate(profilePath)}
+              className="cursor-pointer rounded-lg focus:bg-primary/5"
+            >
+              <Settings className="w-4 h-4 mr-2 text-primary" />
+              Update Profile
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={handleSignOut}

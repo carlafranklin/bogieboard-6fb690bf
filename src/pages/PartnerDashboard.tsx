@@ -111,53 +111,65 @@ export default function PartnerDashboard() {
       return;
     }
     setSaving(true);
-    const slug = profile.slug || generateSlug(profile.business_name);
-    const payload = { ...profile, slug, user_id: userId } as any;
-    delete payload.id; delete payload.created_at; delete payload.updated_at;
+    try {
+      const slug = profile.slug || generateSlug(profile.business_name);
+      const payload = { ...profile, slug, user_id: userId } as any;
+      delete payload.id; delete payload.created_at; delete payload.updated_at;
 
-    // Upload logo
-    let logoUrl = profile.logo_url;
-    if (logoFile) {
-      const ext = logoFile.name.split('.').pop();
-      const path = `${userId}/logo.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('partner-logos').upload(path, logoFile, { upsert: true });
-      if (uploadErr) {
-        toast({ title: 'Logo upload failed', description: getSafeErrorMessage(uploadErr), variant: 'destructive' });
+      // Upload logo
+      let logoUrl = profile.logo_url;
+      if (logoFile) {
+        const ext = logoFile.name.split('.').pop();
+        const path = `${userId}/logo.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('partner-logos').upload(path, logoFile, { upsert: true });
+        if (uploadErr) {
+          console.error('[PartnerDashboard] Logo upload error:', uploadErr);
+          toast({ title: 'Logo upload failed', description: getSafeErrorMessage(uploadErr), variant: 'destructive' });
+        } else {
+          const { data: urlData } = supabase.storage.from('partner-logos').getPublicUrl(path);
+          logoUrl = urlData.publicUrl;
+          payload.logo_url = logoUrl;
+        }
+      }
+
+      // Upload cover image
+      if (coverFile) {
+        const ext = coverFile.name.split('.').pop();
+        const path = `${userId}/cover.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('partner-logos').upload(path, coverFile, { upsert: true });
+        if (uploadErr) {
+          console.error('[PartnerDashboard] Cover upload error:', uploadErr);
+          toast({ title: 'Cover upload failed', description: getSafeErrorMessage(uploadErr), variant: 'destructive' });
+        } else {
+          const { data: urlData } = supabase.storage.from('partner-logos').getPublicUrl(path);
+          payload.cover_url = urlData.publicUrl;
+        }
+      }
+
+      if (profile.id) {
+        const { error } = await supabase.from('partner_profiles').update(payload).eq('id', profile.id);
+        if (error) {
+          console.error('[PartnerDashboard] Profile update error:', error);
+          toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+        } else {
+          // Sync local state with what was actually saved (including freshly uploaded
+          // logo_url/cover_url) — without this, the form shows stale data until a reload.
+          setProfile(prev => ({ ...prev, ...payload }));
+          toast({ title: 'Profile saved!' });
+        }
       } else {
-        const { data: urlData } = supabase.storage.from('partner-logos').getPublicUrl(path);
-        logoUrl = urlData.publicUrl;
-        payload.logo_url = logoUrl;
+        const { data, error } = await supabase.from('partner_profiles').insert(payload).select().single();
+        if (error) {
+          console.error('[PartnerDashboard] Profile insert error:', error);
+          toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
+        } else { setProfile(data); toast({ title: 'Profile created!' }); }
       }
+    } catch (err) {
+      console.error('[PartnerDashboard] Unexpected profile save error:', err);
+      toast({ title: 'Error', description: 'Something went wrong saving your profile. Please try again.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
     }
-
-    // Upload cover image
-    if (coverFile) {
-      const ext = coverFile.name.split('.').pop();
-      const path = `${userId}/cover.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('partner-logos').upload(path, coverFile, { upsert: true });
-      if (uploadErr) {
-        toast({ title: 'Cover upload failed', description: getSafeErrorMessage(uploadErr), variant: 'destructive' });
-      } else {
-        const { data: urlData } = supabase.storage.from('partner-logos').getPublicUrl(path);
-        payload.cover_url = urlData.publicUrl;
-      }
-    }
-
-    if (profile.id) {
-      const { error } = await supabase.from('partner_profiles').update(payload).eq('id', profile.id);
-      if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
-      else {
-        // Sync local state with what was actually saved (including freshly uploaded
-        // logo_url/cover_url) — without this, the form shows stale data until a reload.
-        setProfile(prev => ({ ...prev, ...payload }));
-        toast({ title: 'Profile saved!' });
-      }
-    } else {
-      const { data, error } = await supabase.from('partner_profiles').insert(payload).select().single();
-      if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
-      else { setProfile(data); toast({ title: 'Profile created!' }); }
-    }
-    setSaving(false);
   };
 
   const handleAddEmployee = async () => {

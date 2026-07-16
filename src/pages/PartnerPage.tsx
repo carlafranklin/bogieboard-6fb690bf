@@ -16,23 +16,31 @@ export default function PartnerPage() {
   const [profile, setProfile] = useState<PartnerProfile | null>(null);
   const [events, setEvents] = useState<PartnerEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
     const fetch = async () => {
       setLoading(true);
-      const { data: pp } = await supabase.from('partner_profiles').select('*').eq('slug', slug).single();
-      if (pp) {
-        setProfile(pp);
-        const { data: evts } = await supabase.from('partner_events')
-          .select('*')
-          .eq('partner_profile_id', pp.id)
-          .eq('status', 'active')
-          .gte('event_date', new Date().toISOString().split('T')[0])
-          .order('event_date');
-        if (evts) setEvents(evts);
+      setLoadError(false);
+      try {
+        const { data: pp } = await supabase.from('partner_profiles').select('*').eq('slug', slug).single();
+        if (pp) {
+          setProfile(pp);
+          const { data: evts } = await supabase.from('partner_events')
+            .select('*')
+            .eq('partner_profile_id', pp.id)
+            .eq('status', 'approved')
+            .gte('event_date', new Date().toISOString().split('T')[0])
+            .order('event_date');
+          if (evts) setEvents(evts);
+        }
+      } catch (err) {
+        console.error('[PartnerPage] Failed to load partner page:', err);
+        setLoadError(true);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetch();
   }, [slug]);
@@ -44,6 +52,21 @@ export default function PartnerPage() {
         <main className="pt-24 pb-16 px-4 flex items-center justify-center">
           <p className="text-muted-foreground">Loading...</p>
         </main>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="pt-24 pb-16 px-4 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="font-display text-2xl font-bold text-foreground mb-2">Couldn't Load This Page</h1>
+            <p className="text-muted-foreground">Something went wrong loading this business's page. Please try again.</p>
+          </div>
+        </main>
+        <Footer />
       </div>
     );
   }
