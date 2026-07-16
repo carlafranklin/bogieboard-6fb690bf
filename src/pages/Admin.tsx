@@ -19,6 +19,7 @@ import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
+import { getMissingEventFields, isPastDate, isEndBeforeOrEqualStart } from '@/lib/partnerEventValidation';
 
 type Profile = Tables<'profiles'>;
 type Category = Tables<'categories'>;
@@ -321,15 +322,36 @@ export default function AdminPage() {
   };
 
   // Moderation handlers
-  const handleApproveEvent = async (eventId: string) => {
-    const { error } = await supabase.from('partner_events').update({ 
-      status: 'approved', 
-      moderation_notes: moderationNotes[eventId] || null 
-    }).eq('id', eventId);
+  const handleApproveEvent = async (event: PartnerEventWithProfile) => {
+    const reasons = getMissingEventFields(event, !!event.image_url);
+
+    if (event.event_date && isPastDate(event.event_date)) {
+      reasons.push('Event date is in the past');
+    }
+    if (
+      event.event_date && event.event_time && event.end_time &&
+      isEndBeforeOrEqualStart(event.event_date, event.event_time, event.end_date, event.end_time)
+    ) {
+      reasons.push('End time must be after start time');
+    }
+
+    if (reasons.length > 0) {
+      toast({
+        title: 'Cannot approve this event',
+        description: `Ask the partner to fix: ${reasons.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { error } = await supabase.from('partner_events').update({
+      status: 'approved',
+      moderation_notes: moderationNotes[event.id] || null
+    }).eq('id', event.id);
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
-      setModerationNotes(prev => { const n = { ...prev }; delete n[eventId]; return n; });
+      setModerationNotes(prev => { const n = { ...prev }; delete n[event.id]; return n; });
       await loadData();
       toast({ title: 'Event approved', description: 'The event is now live in search results.' });
     }
@@ -1307,7 +1329,7 @@ export default function AdminPage() {
                               <div className="flex gap-2 justify-end">
                                 {event.status !== 'approved' && (
                                   <Button
-                                    onClick={() => handleApproveEvent(event.id)}
+                                    onClick={() => handleApproveEvent(event)}
                                     className="bg-primary hover:bg-green-dark text-primary-foreground gap-1"
                                   >
                                     <CheckCircle2 className="w-4 h-4" />
