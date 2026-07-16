@@ -17,6 +17,17 @@ import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import type { Tables } from '@/integrations/supabase/types';
 import { EMPLOYEE_COUNT_OPTIONS, CUSTOMER_AUDIENCE_OPTIONS, MARKETING_GOAL_OPTIONS } from '@/data/partnerProfileOptions';
+import {
+  TIME_HOURS,
+  TIME_MINUTES,
+  TIME_AMPM,
+  parseTimeString,
+  formatTimeParts,
+  getTodayLocalDateString,
+  isPastDate,
+  isEndBeforeOrEqualStart,
+  getMissingEventFields,
+} from '@/lib/partnerEventValidation';
 
 type PartnerProfile = Tables<'partner_profiles'>;
 type PartnerEmployee = Tables<'partner_employees'>;
@@ -194,8 +205,32 @@ export default function PartnerDashboard() {
 
   const handleSaveEvent = async (submitForReview = false) => {
     if (!profile.id || !userId) { toast({ title: 'Save profile first', variant: 'destructive' }); return; }
-    if (!newEvent.title?.trim() || !newEvent.event_date) {
-      toast({ title: 'Title and date required', variant: 'destructive' }); return;
+
+    const missingFields = getMissingEventFields(newEvent, !!(eventImageFile || newEvent.image_url));
+    if (missingFields.length > 0) {
+      toast({
+        title: 'Missing required fields',
+        description: `Please fill in: ${missingFields.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (newEvent.event_date && isPastDate(newEvent.event_date)) {
+      toast({ title: 'Invalid date', description: 'Event date cannot be in the past.', variant: 'destructive' });
+      return;
+    }
+    if (newEvent.end_date && isPastDate(newEvent.end_date)) {
+      toast({ title: 'Invalid date', description: 'End date cannot be in the past.', variant: 'destructive' });
+      return;
+    }
+
+    if (
+      newEvent.event_date && newEvent.event_time && newEvent.end_time &&
+      isEndBeforeOrEqualStart(newEvent.event_date, newEvent.event_time, newEvent.end_date, newEvent.end_time)
+    ) {
+      toast({ title: 'Invalid time range', description: 'End time must be after start time.', variant: 'destructive' });
+      return;
     }
 
     const status = submitForReview ? 'pending' : (newEvent.status === 'rejected' ? 'draft' : (newEvent.status || 'draft'));
@@ -703,39 +738,111 @@ export default function PartnerDashboard() {
                       <Input value={newEvent.title || ''} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} placeholder="Event title" />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label>Description</Label>
+                      <Label>Description *</Label>
                       <Textarea value={newEvent.description || ''} onChange={e => setNewEvent({ ...newEvent, description: e.target.value })} rows={3} />
                     </div>
                     <div className="space-y-2">
                       <Label>Start Date *</Label>
-                      <Input type="date" value={newEvent.event_date || ''} onChange={e => setNewEvent({ ...newEvent, event_date: e.target.value })} />
+                      <Input
+                        type="date"
+                        min={getTodayLocalDateString()}
+                        value={newEvent.event_date || ''}
+                        onChange={e => setNewEvent({ ...newEvent, event_date: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>Start Time</Label>
-                      <Input value={newEvent.event_time || ''} onChange={e => setNewEvent({ ...newEvent, event_time: e.target.value })} placeholder="7:00 PM" />
+                      <Label>Start Time *</Label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <Select
+                          value={parseTimeString(newEvent.event_time).hour}
+                          onValueChange={h => {
+                            const { minute, ampm } = parseTimeString(newEvent.event_time);
+                            setNewEvent({ ...newEvent, event_time: formatTimeParts(h, minute, ampm) });
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Hr" /></SelectTrigger>
+                          <SelectContent>{TIME_HOURS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select
+                          value={parseTimeString(newEvent.event_time).minute}
+                          onValueChange={m => {
+                            const { hour, ampm } = parseTimeString(newEvent.event_time);
+                            setNewEvent({ ...newEvent, event_time: formatTimeParts(hour, m, ampm) });
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Min" /></SelectTrigger>
+                          <SelectContent>{TIME_MINUTES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select
+                          value={parseTimeString(newEvent.event_time).ampm}
+                          onValueChange={ap => {
+                            const { hour, minute } = parseTimeString(newEvent.event_time);
+                            setNewEvent({ ...newEvent, event_time: formatTimeParts(hour, minute, ap) });
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="AM/PM" /></SelectTrigger>
+                          <SelectContent>{TIME_AMPM.map(ap => <SelectItem key={ap} value={ap}>{ap}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>End Date</Label>
-                      <Input type="date" value={newEvent.end_date || ''} onChange={e => setNewEvent({ ...newEvent, end_date: e.target.value })} />
+                      <Input
+                        type="date"
+                        min={getTodayLocalDateString()}
+                        value={newEvent.end_date || ''}
+                        onChange={e => setNewEvent({ ...newEvent, end_date: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label>End Time</Label>
-                      <Input value={newEvent.end_time || ''} onChange={e => setNewEvent({ ...newEvent, end_time: e.target.value })} placeholder="10:00 PM" />
+                      <Label>End Time *</Label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <Select
+                          value={parseTimeString(newEvent.end_time).hour}
+                          onValueChange={h => {
+                            const { minute, ampm } = parseTimeString(newEvent.end_time);
+                            setNewEvent({ ...newEvent, end_time: formatTimeParts(h, minute, ampm) });
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Hr" /></SelectTrigger>
+                          <SelectContent>{TIME_HOURS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select
+                          value={parseTimeString(newEvent.end_time).minute}
+                          onValueChange={m => {
+                            const { hour, ampm } = parseTimeString(newEvent.end_time);
+                            setNewEvent({ ...newEvent, end_time: formatTimeParts(hour, m, ampm) });
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Min" /></SelectTrigger>
+                          <SelectContent>{TIME_MINUTES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Select
+                          value={parseTimeString(newEvent.end_time).ampm}
+                          onValueChange={ap => {
+                            const { hour, minute } = parseTimeString(newEvent.end_time);
+                            setNewEvent({ ...newEvent, end_time: formatTimeParts(hour, minute, ap) });
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="AM/PM" /></SelectTrigger>
+                          <SelectContent>{TIME_AMPM.map(ap => <SelectItem key={ap} value={ap}>{ap}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Venue Name</Label>
                       <Input value={newEvent.venue_name || ''} onChange={e => setNewEvent({ ...newEvent, venue_name: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Venue Address</Label>
+                      <Label>Venue Address *</Label>
                       <Input value={newEvent.venue_address || ''} onChange={e => setNewEvent({ ...newEvent, venue_address: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <Label>City</Label>
+                      <Label>Venue City *</Label>
                       <Input value={newEvent.city || ''} onChange={e => setNewEvent({ ...newEvent, city: e.target.value })} placeholder={profile.city || ''} />
                     </div>
                     <div className="space-y-2">
-                      <Label>State</Label>
+                      <Label>Venue State *</Label>
                       <Input value={newEvent.state || ''} onChange={e => setNewEvent({ ...newEvent, state: e.target.value })} placeholder={profile.state || ''} maxLength={2} />
                     </div>
                     <div className="space-y-2">
@@ -772,7 +879,7 @@ export default function PartnerDashboard() {
                       <Input value={newEvent.ticket_url || ''} onChange={e => setNewEvent({ ...newEvent, ticket_url: e.target.value })} placeholder="https://..." />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label>Event Image</Label>
+                      <Label>Event Image *</Label>
                       <div
                         className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 transition-colors cursor-pointer ${
                           dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/50 hover:bg-muted/30'
