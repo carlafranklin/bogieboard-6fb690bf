@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Menu, X, Search, MapPin, Building2, Shield } from 'lucide-react';
+import { Menu, X, Search, MapPin, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -139,14 +139,9 @@ export function Header() {
                     </Button>
                   </Link>
                 )}
-                {isPartner && (
-                  <Link to="/partner-dashboard">
-                    <Button variant="outline" size="sm">
-                      <Building2 className="w-4 h-4 mr-2" />
-                      Partner
-                    </Button>
-                  </Link>
-                )}
+                {/* No separate "Partner" link here — UserAccountMenu's "Business Profile"
+                    action already routes partners to /partner-dashboard, so a standalone
+                    link would just be a second button pointing at the same place. */}
                 <UserAccountMenu userId={userId} isPartner={isPartner} />
               </>
             ) : (
@@ -205,13 +200,8 @@ export function Header() {
                       </Button>
                     </Link>
                   )}
-                  {isPartner && (
-                    <Link to="/partner-dashboard" onClick={() => setIsMenuOpen(false)}>
-                      <Button variant="outline" className="w-full">
-                        <Building2 className="w-4 h-4 mr-2" />Partner Dashboard
-                      </Button>
-                    </Link>
-                  )}
+                  {/* No separate "Partner Dashboard" link here — the "Business Profile"
+                      button below already routes partners to /partner-dashboard. */}
                   {/* Mobile account controls */}
                   <div className="flex gap-2 mt-2">
                     <Button
