@@ -2,6 +2,7 @@ export interface PriceDisplayInput {
   is_free?: boolean | null;
   price_min?: number | null;
   price_max?: number | null;
+  ticket_url?: string | null;
 }
 
 export interface PriceDisplay {
@@ -20,7 +21,7 @@ function formatPriceNumber(value: number): string {
  * is never treated as free.
  */
 export function getPriceDisplay(event: PriceDisplayInput): PriceDisplay {
-  const { is_free, price_min, price_max } = event;
+  const { is_free, price_min, price_max, ticket_url } = event;
 
   if (is_free === true || price_min === 0) {
     return { label: 'Free', isFree: true };
@@ -42,5 +43,8 @@ export function getPriceDisplay(event: PriceDisplayInput): PriceDisplay {
     return { label: `From $${formatPriceNumber(price_min as number)}`, isFree: false };
   }
 
-  return { label: 'Price not listed', isFree: false };
+  return {
+    label: ticket_url ? 'Check ticket site for pricing' : 'Price not listed',
+    isFree: false,
+  };
 }
