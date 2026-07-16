@@ -430,6 +430,9 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       // support migration. DO UPDATE keeps canonical_event_id current.
       // fetched_at confirmed on source_events (TIMESTAMPTZ NOT NULL DEFAULT now()).
       // canonical_event_id is always populated (blockers 3+4 guarantee this).
+      // raw_payload stores the full Ticketmaster event object so price fields
+      // (and anything else) can be audited later without re-fetching from TM —
+      // forward-only, does not affect hash/dedup/lineage.
       const { error: seErr } = await db
         .from("source_events")
         .upsert(
@@ -441,6 +444,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
             parse_status:       "matched",
             canonical_event_id: canonicalEventId,   // always set
             fetched_at:         now,                 // confirmed column
+            raw_payload:        ev,
           },
           {
             onConflict:       "source_id,external_event_id",
