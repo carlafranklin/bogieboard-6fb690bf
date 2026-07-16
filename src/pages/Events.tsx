@@ -365,6 +365,11 @@ export default function EventsPage() {
 
     // Sort
     const sorted = [...filtered];
+    // Null price_min means "unknown," not "$0" — it must always sort last,
+    // regardless of direction. A genuinely free event (is_free or a verified
+    // $0 minimum) still sorts as $0.
+    const effectivePrice = (e: CanonicalEvent): number | null =>
+      e.is_free || e.price_min === 0 ? 0 : e.price_min;
     switch (sortBy) {
       case 'date-asc':
         sorted.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
@@ -373,10 +378,22 @@ export default function EventsPage() {
         sorted.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
         break;
       case 'price-low':
-        sorted.sort((a, b) => (a.price_min ?? 0) - (b.price_min ?? 0));
+        sorted.sort((a, b) => {
+          const ap = effectivePrice(a), bp = effectivePrice(b);
+          if (ap === null && bp === null) return 0;
+          if (ap === null) return 1;
+          if (bp === null) return -1;
+          return ap - bp;
+        });
         break;
       case 'price-high':
-        sorted.sort((a, b) => (b.price_min ?? 0) - (a.price_min ?? 0));
+        sorted.sort((a, b) => {
+          const ap = effectivePrice(a), bp = effectivePrice(b);
+          if (ap === null && bp === null) return 0;
+          if (ap === null) return 1;
+          if (bp === null) return -1;
+          return bp - ap;
+        });
         break;
       default:
         // featured: keep original order
