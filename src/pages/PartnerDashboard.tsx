@@ -146,7 +146,12 @@ export default function PartnerDashboard() {
     if (profile.id) {
       const { error } = await supabase.from('partner_profiles').update(payload).eq('id', profile.id);
       if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
-      else toast({ title: 'Profile saved!' });
+      else {
+        // Sync local state with what was actually saved (including freshly uploaded
+        // logo_url/cover_url) — without this, the form shows stale data until a reload.
+        setProfile(prev => ({ ...prev, ...payload }));
+        toast({ title: 'Profile saved!' });
+      }
     } else {
       const { data, error } = await supabase.from('partner_profiles').insert(payload).select().single();
       if (error) toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
