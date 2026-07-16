@@ -56,12 +56,30 @@ export default function PartnerDashboard() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [newEvent, setNewEvent] = useState<Partial<PartnerEvent>>({ is_free: false, status: 'draft' });
+  const [startHour, setStartHour] = useState('');
+  const [startMinute, setStartMinute] = useState('');
+  const [startAmPm, setStartAmPm] = useState('');
+  const [endHour, setEndHour] = useState('');
+  const [endMinute, setEndMinute] = useState('');
+  const [endAmPm, setEndAmPm] = useState('');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventImageFile, setEventImageFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [eventFilter, setEventFilter] = useState<string>('all');
   const eventImageInputRef = useRef<HTMLInputElement>(null);
+
+  // Hour/minute/AM-PM dropdowns are the source of truth while the partner is
+  // picking a time — composing directly into newEvent.event_time on every
+  // partial selection would null the field (formatTimeParts returns null
+  // until all three parts are present) and reset the dropdowns to placeholder.
+  useEffect(() => {
+    setNewEvent(prev => ({ ...prev, event_time: formatTimeParts(startHour, startMinute, startAmPm) }));
+  }, [startHour, startMinute, startAmPm]);
+
+  useEffect(() => {
+    setNewEvent(prev => ({ ...prev, end_time: formatTimeParts(endHour, endMinute, endAmPm) }));
+  }, [endHour, endMinute, endAmPm]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
@@ -281,10 +299,16 @@ export default function PartnerDashboard() {
     setNewEvent({ is_free: false, status: 'draft' });
     setEditingEventId(null);
     setEventImageFile(null);
+    setStartHour(''); setStartMinute(''); setStartAmPm('');
+    setEndHour(''); setEndMinute(''); setEndAmPm('');
   };
 
   const handleEditEvent = (evt: PartnerEvent) => {
     setNewEvent(evt);
+    const start = parseTimeString(evt.event_time);
+    setStartHour(start.hour); setStartMinute(start.minute); setStartAmPm(start.ampm);
+    const end = parseTimeString(evt.end_time);
+    setEndHour(end.hour); setEndMinute(end.minute); setEndAmPm(end.ampm);
     setEditingEventId(evt.id);
     setActiveTab('events');
   };
@@ -297,6 +321,10 @@ export default function PartnerDashboard() {
   const handleDuplicateEvent = (evt: PartnerEvent) => {
     const { id, created_at, updated_at, ...rest } = evt as any;
     setNewEvent({ ...rest, status: 'draft', title: `${evt.title} (Copy)` });
+    const start = parseTimeString(evt.event_time);
+    setStartHour(start.hour); setStartMinute(start.minute); setStartAmPm(start.ampm);
+    const end = parseTimeString(evt.end_time);
+    setEndHour(end.hour); setEndMinute(end.minute); setEndAmPm(end.ampm);
     setEditingEventId(null);
     setActiveTab('events');
     toast({ title: 'Event duplicated as draft' });
@@ -753,33 +781,15 @@ export default function PartnerDashboard() {
                     <div className="space-y-2">
                       <Label>Start Time *</Label>
                       <div className="grid grid-cols-3 gap-1.5">
-                        <Select
-                          value={parseTimeString(newEvent.event_time).hour}
-                          onValueChange={h => {
-                            const { minute, ampm } = parseTimeString(newEvent.event_time);
-                            setNewEvent({ ...newEvent, event_time: formatTimeParts(h, minute, ampm) });
-                          }}
-                        >
+                        <Select value={startHour} onValueChange={setStartHour}>
                           <SelectTrigger><SelectValue placeholder="Hr" /></SelectTrigger>
                           <SelectContent>{TIME_HOURS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
                         </Select>
-                        <Select
-                          value={parseTimeString(newEvent.event_time).minute}
-                          onValueChange={m => {
-                            const { hour, ampm } = parseTimeString(newEvent.event_time);
-                            setNewEvent({ ...newEvent, event_time: formatTimeParts(hour, m, ampm) });
-                          }}
-                        >
+                        <Select value={startMinute} onValueChange={setStartMinute}>
                           <SelectTrigger><SelectValue placeholder="Min" /></SelectTrigger>
                           <SelectContent>{TIME_MINUTES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                         </Select>
-                        <Select
-                          value={parseTimeString(newEvent.event_time).ampm}
-                          onValueChange={ap => {
-                            const { hour, minute } = parseTimeString(newEvent.event_time);
-                            setNewEvent({ ...newEvent, event_time: formatTimeParts(hour, minute, ap) });
-                          }}
-                        >
+                        <Select value={startAmPm} onValueChange={setStartAmPm}>
                           <SelectTrigger><SelectValue placeholder="AM/PM" /></SelectTrigger>
                           <SelectContent>{TIME_AMPM.map(ap => <SelectItem key={ap} value={ap}>{ap}</SelectItem>)}</SelectContent>
                         </Select>
@@ -797,33 +807,15 @@ export default function PartnerDashboard() {
                     <div className="space-y-2">
                       <Label>End Time *</Label>
                       <div className="grid grid-cols-3 gap-1.5">
-                        <Select
-                          value={parseTimeString(newEvent.end_time).hour}
-                          onValueChange={h => {
-                            const { minute, ampm } = parseTimeString(newEvent.end_time);
-                            setNewEvent({ ...newEvent, end_time: formatTimeParts(h, minute, ampm) });
-                          }}
-                        >
+                        <Select value={endHour} onValueChange={setEndHour}>
                           <SelectTrigger><SelectValue placeholder="Hr" /></SelectTrigger>
                           <SelectContent>{TIME_HOURS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
                         </Select>
-                        <Select
-                          value={parseTimeString(newEvent.end_time).minute}
-                          onValueChange={m => {
-                            const { hour, ampm } = parseTimeString(newEvent.end_time);
-                            setNewEvent({ ...newEvent, end_time: formatTimeParts(hour, m, ampm) });
-                          }}
-                        >
+                        <Select value={endMinute} onValueChange={setEndMinute}>
                           <SelectTrigger><SelectValue placeholder="Min" /></SelectTrigger>
                           <SelectContent>{TIME_MINUTES.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                         </Select>
-                        <Select
-                          value={parseTimeString(newEvent.end_time).ampm}
-                          onValueChange={ap => {
-                            const { hour, minute } = parseTimeString(newEvent.end_time);
-                            setNewEvent({ ...newEvent, end_time: formatTimeParts(hour, minute, ap) });
-                          }}
-                        >
+                        <Select value={endAmPm} onValueChange={setEndAmPm}>
                           <SelectTrigger><SelectValue placeholder="AM/PM" /></SelectTrigger>
                           <SelectContent>{TIME_AMPM.map(ap => <SelectItem key={ap} value={ap}>{ap}</SelectItem>)}</SelectContent>
                         </Select>
