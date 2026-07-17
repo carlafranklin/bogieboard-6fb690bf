@@ -341,14 +341,28 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       }
 
       // ── 10c. Price / currency ─────────────────────────────────────────────
+      // Only ev.priceRanges is treated as the event ticket price. ev.products
+      // is upsells/add-ons (parking, VIP, "NOT A CONCERT TICKET" items) and
+      // must never be parsed as the ticket price.
+      //
+      // Ticketmaster includes priceRanges intermittently across re-ingests of
+      // the same event. When it's absent, the price fields are OMITTED from the
+      // upsert payload entirely (PostgREST DO UPDATE only writes columns present
+      // in the body), so a price-less pass can never null out a previously
+      // known price_min/price_max, reset currency, or flip is_free. New inserts
+      // without price data get the column defaults, same as before.
       const priceRange = ev.priceRanges?.find((p) => p.type === "standard")
         ?? ev.priceRanges?.[0]
         ?? null;
-      const priceMin = priceRange?.min ?? null;
-      const priceMax = priceRange?.max ?? null;
-      // currency confirmed on canonical_events (TEXT NOT NULL DEFAULT 'USD')
-      const currency = priceRange?.currency ?? "USD";
-      const isFree   = priceMin === 0;
+      const priceFields = priceRange
+        ? {
+            price_min: priceRange.min ?? null,
+            price_max: priceRange.max ?? null,
+            // currency confirmed on canonical_events (TEXT NOT NULL DEFAULT 'USD')
+            currency:  priceRange.currency ?? "USD",
+            is_free:   priceRange.min === 0,
+          }
+        : {};
 
       // ── 10d. Image / description / end time ───────────────────────────────
       const bestImage = ev.images
@@ -377,10 +391,7 @@ Deno.serve(async (_req: Request): Promise<Response> => {
             venue_id:          venueId,
             metro_area_id:     metro.id,
             normalized_hash:   normHash,
-            is_free:           isFree,
-            price_min:         priceMin,
-            price_max:         priceMax,
-            currency,               // confirmed column
+            ...priceFields,         // omitted entirely when priceRanges is absent
             ticket_url:        ev.url ?? null,
             image_url:         bestImage,
             status:            "active",
