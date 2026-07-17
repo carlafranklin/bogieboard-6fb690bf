@@ -1,8 +1,6 @@
 name: Monitor Feed Health
 
 on:
-  schedule:
-    - cron: '0 8 */2 * *' # Every 2 days at 8am UTC
   workflow_dispatch:
     inputs:
       environment:
