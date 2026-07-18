@@ -219,7 +219,12 @@ export default function ProfilePage() {
 
   const handleRemovePhoto = async () => {
     if (!userId) return;
-    await supabase.from('profiles').upsert({ user_id: userId, custom_avatar_url: null, selected_avatar_id: null } as any, { onConflict: 'user_id' });
+    const { error } = await supabase.from('profiles').upsert({ user_id: userId, custom_avatar_url: null, selected_avatar_id: null } as any, { onConflict: 'user_id' });
+    if (error) {
+      console.error('[Profile] Remove photo error:', error);
+      toast.error('Error removing photo', { description: getSafeErrorMessage(error) });
+      return;
+    }
     setProfile(prev => ({ ...prev, custom_avatar_url: null, selected_avatar_id: null }));
     setImgError(false);
     toast.success('Photo removed');
@@ -227,7 +232,12 @@ export default function ProfilePage() {
 
   const handleSelectAvatar = async (avatar: AvatarRow) => {
     if (!userId) return;
-    await supabase.from('profiles').upsert({ user_id: userId, selected_avatar_id: avatar.id, custom_avatar_url: null } as any, { onConflict: 'user_id' });
+    const { error } = await supabase.from('profiles').upsert({ user_id: userId, selected_avatar_id: avatar.id, custom_avatar_url: null } as any, { onConflict: 'user_id' });
+    if (error) {
+      console.error('[Profile] Select avatar error:', error);
+      toast.error('Error setting avatar', { description: getSafeErrorMessage(error) });
+      return;
+    }
     setProfile(prev => ({ ...prev, selected_avatar_id: avatar.id, custom_avatar_url: null }));
     setImgError(false);
     setShowAvatarGallery(false);

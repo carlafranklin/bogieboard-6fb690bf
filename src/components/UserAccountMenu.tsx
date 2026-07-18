@@ -28,6 +28,13 @@ export function UserAccountMenu({ userId, isPartner = false }: UserAccountMenuPr
   useEffect(() => {
     let cancelled = false;
     const fetchAvatar = async () => {
+      // Resolve the avatar into a local variable and commit state once at the
+      // end. The old code checked the avatarUrl STATE between steps — a stale
+      // render-time closure that is always null during the initial fetch — so
+      // the provider-metadata fallback fired unconditionally and overwrote a
+      // selected/custom avatar with the Google photo for every OAuth user.
+      let resolved: string | null = null;
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('first_name, last_name, custom_avatar_url, provider_avatar_url, selected_avatar_id')
@@ -42,28 +49,32 @@ export function UserAccountMenu({ userId, isPartner = false }: UserAccountMenuPr
         setInitials((first.charAt(0) + last.charAt(0)).toUpperCase() || 'U');
 
         if (profile.custom_avatar_url) {
-          setAvatarUrl(profile.custom_avatar_url);
+          resolved = profile.custom_avatar_url;
         } else if (profile.selected_avatar_id) {
           const { data: avatar } = await supabase
             .from('avatars')
             .select('image_url')
             .eq('id', profile.selected_avatar_id)
             .single();
-          if (!cancelled && avatar?.image_url) setAvatarUrl(avatar.image_url);
+          if (cancelled) return;
+          if (avatar?.image_url) resolved = avatar.image_url;
         } else if (profile.provider_avatar_url) {
-          setAvatarUrl(profile.provider_avatar_url);
+          resolved = profile.provider_avatar_url;
         }
       }
 
-      if (!cancelled) setLoaded(true);
-
-      // Fallback: try user metadata
-      if (!cancelled) {
+      // Fallback to auth metadata only when the profile yielded nothing.
+      if (!resolved) {
         const { data: { session } } = await supabase.auth.getSession();
         const meta = session?.user?.user_metadata;
-        if (!cancelled && !avatarUrl && (meta?.avatar_url || meta?.picture)) {
-          setAvatarUrl(meta.avatar_url || meta.picture);
+        if (meta?.avatar_url || meta?.picture) {
+          resolved = meta.avatar_url || meta.picture;
         }
+      }
+
+      if (!cancelled) {
+        if (resolved) setAvatarUrl(resolved);
+        setLoaded(true);
       }
     };
     fetchAvatar();
