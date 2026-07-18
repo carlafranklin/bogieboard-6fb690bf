@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { TERMS_VERSION, LEGAL_DOC_TYPES } from '@/data/legal';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -75,6 +76,33 @@ export default function AuthCallback() {
 
       if (Object.keys(finalUpdate).length > 0) {
         await supabase.from('profiles').update(finalUpdate).eq('user_id', user.id);
+      }
+
+      // Record legal acceptance (append-only audit log). Email/partner signups
+      // carry terms metadata from their signup forms; Google OAuth users accept
+      // via the "By continuing" notice beside the button, recorded on first
+      // callback. Idempotent: ON CONFLICT (user_id, doc_type, version) DO
+      // NOTHING, so repeat callbacks never duplicate rows. Legacy email users
+      // with no terms metadata are skipped — acceptance is never fabricated —
+      // and a failure here logs but never blocks the callback flow.
+      const termsSource = meta.terms_source
+        ?? (provider === 'google' ? 'oauth_signup' : null);
+      if (termsSource) {
+        const termsVersion = meta.terms_version ?? TERMS_VERSION;
+        const { error: legalErr } = await supabase
+          .from('legal_acceptances')
+          .upsert(
+            LEGAL_DOC_TYPES.map((docType) => ({
+              user_id: user.id,
+              doc_type: docType,
+              version: termsVersion,
+              source: termsSource,
+            })),
+            { onConflict: 'user_id,doc_type,version', ignoreDuplicates: true },
+          );
+        if (legalErr) {
+          console.error('[AuthCallback] Legal acceptance recording failed:', legalErr);
+        }
       }
 
       // Deferred partner setup — completes what PartnerMember.tsx's signup couldn't:

@@ -688,6 +688,36 @@ export type Database = {
           },
         ]
       }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          created_at: string
+          doc_type: string
+          id: string
+          source: string
+          user_id: string
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          created_at?: string
+          doc_type: string
+          id?: string
+          source: string
+          user_id: string
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          created_at?: string
+          doc_type?: string
+          id?: string
+          source?: string
+          user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
       metro_areas: {
         Row: {
           core_cities: Json
