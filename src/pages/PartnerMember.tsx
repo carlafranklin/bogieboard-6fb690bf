@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Building2, Users, Calendar, Star, TrendingUp, Globe, Phone, MapPin, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { ForgotPasswordDialog } from '@/components/ForgotPasswordDialog';
 import { INDUSTRY_SECTOR_OPTIONS, INDUSTRY_TYPE_OPTIONS } from '@/data/partnerProfileOptions';
+import { TERMS_VERSION } from '@/data/legal';
 
 const benefits = [
   { icon: Building2, title: 'Business Profile', description: 'Create a branded public page showcasing your business, location, and social links.' },
@@ -44,6 +46,7 @@ export default function PartnerMemberPage() {
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_, session) => {
@@ -67,6 +70,10 @@ export default function PartnerMemberPage() {
     e.preventDefault();
     if (!isLogin && (!industrySector || !industryType)) {
       toast({ title: 'Missing information', description: 'Please select an industry sector and industry type.', variant: 'destructive' });
+      return;
+    }
+    if (!isLogin && !acceptedTerms) {
+      toast({ title: 'Agreement required', description: 'Please agree to the Terms of Service and Privacy Policy to create an account.', variant: 'destructive' });
       return;
     }
     setLoading(true);
@@ -99,6 +106,10 @@ export default function PartnerMemberPage() {
               contact_name: contactName,
               contact_email: contactEmail,
               contact_phone: contactPhone,
+              // Acceptance is persisted to legal_acceptances by AuthCallback
+              // once the confirmed session exists (no session yet at signup).
+              terms_version: TERMS_VERSION,
+              terms_source: 'partner_signup',
             },
           },
         });
@@ -308,7 +319,24 @@ export default function PartnerMemberPage() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full h-12 bg-primary hover:bg-green-dark text-primary-foreground font-semibold" disabled={loading}>
+                  {!isLogin && (
+                    <div className="flex items-start gap-2">
+                      <Checkbox
+                        id="partner-accept-terms"
+                        checked={acceptedTerms}
+                        onCheckedChange={checked => setAcceptedTerms(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <Label htmlFor="partner-accept-terms" className="cursor-pointer font-normal text-sm text-muted-foreground leading-snug">
+                        I agree to the{' '}
+                        <Link to="/terms-of-service" target="_blank" className="text-primary hover:underline">Terms of Service</Link>
+                        {' '}and{' '}
+                        <Link to="/privacy-policy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>.
+                      </Label>
+                    </div>
+                  )}
+
+                  <Button type="submit" className="w-full h-12 bg-primary hover:bg-green-dark text-primary-foreground font-semibold" disabled={loading || (!isLogin && !acceptedTerms)}>
                     {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Partner Account'}
                   </Button>
                 </form>

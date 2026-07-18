@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TERMS_VERSION } from '@/data/legal';
 import { Header } from '@/components/Header';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +22,7 @@ export default function AuthPage() {
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -48,6 +51,10 @@ export default function AuthPage() {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLogin && !acceptedTerms) {
+      toast({ title: 'Agreement required', description: 'Please agree to the Terms of Service and Privacy Policy to create an account.', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       if (isLogin) {
@@ -63,6 +70,10 @@ export default function AuthPage() {
             data: {
               first_name: firstName,
               last_name: lastName,
+              // Acceptance is persisted to legal_acceptances by AuthCallback
+              // once the confirmed session exists (no session yet at signup).
+              terms_version: TERMS_VERSION,
+              terms_source: 'email_signup',
               ...(isPartnerSignup ? { is_partner: true } : {}),
             },
           },
@@ -118,6 +129,12 @@ export default function AuthPage() {
               </svg>
               Continue with Google
             </Button>
+            <p className="text-xs text-muted-foreground text-center mb-4 -mt-1">
+              By continuing with Google, you agree to the{' '}
+              <Link to="/terms-of-service" target="_blank" className="text-primary hover:underline">Terms of Service</Link>
+              {' '}and{' '}
+              <Link to="/privacy-policy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>.
+            </p>
 
             <div className="relative mb-4">
               <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
@@ -159,7 +176,24 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-12 bg-primary hover:bg-green-dark text-primary-foreground font-semibold" disabled={loading}>
+              {!isLogin && (
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="accept-terms"
+                    checked={acceptedTerms}
+                    onCheckedChange={checked => setAcceptedTerms(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <Label htmlFor="accept-terms" className="cursor-pointer font-normal text-sm text-muted-foreground leading-snug">
+                    I agree to the{' '}
+                    <Link to="/terms-of-service" target="_blank" className="text-primary hover:underline">Terms of Service</Link>
+                    {' '}and{' '}
+                    <Link to="/privacy-policy" target="_blank" className="text-primary hover:underline">Privacy Policy</Link>.
+                  </Label>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-12 bg-primary hover:bg-green-dark text-primary-foreground font-semibold" disabled={loading || (!isLogin && !acceptedTerms)}>
                 {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
               </Button>
             </form>
