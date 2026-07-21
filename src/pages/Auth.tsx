@@ -79,9 +79,21 @@ export default function AuthPage() {
           },
         });
         if (error) throw error;
-        toast({ title: 'Check your email', description: 'We sent you a confirmation link.' });
+        // Supabase anti-enumeration: signing up an already-confirmed email
+        // returns success with an EMPTY identities array and sends no email —
+        // showing "Check your email" for that case would be a false promise.
+        if (signUpData.user && signUpData.user.identities?.length === 0) {
+          toast({
+            title: 'Account may already exist',
+            description: 'An account with this email may already exist. Please try signing in.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({ title: 'Check your email', description: 'We sent you a confirmation link.' });
+        }
       }
     } catch (error: any) {
+      console.error('[Auth] email auth error:', error);
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -193,7 +205,12 @@ export default function AuthPage() {
                 </div>
               )}
 
-              <Button type="submit" className="w-full h-12 bg-primary hover:bg-green-dark text-primary-foreground font-semibold" disabled={loading || (!isLogin && !acceptedTerms)}>
+              {/* Not disabled on unchecked terms: a disabled sole submit button
+                  also suppresses Enter-key form submission, so the "Agreement
+                  required" guard toast in handleEmailAuth would never fire and
+                  the user would get zero feedback. The guard still blocks
+                  signup before any Supabase call. */}
+              <Button type="submit" className="w-full h-12 bg-primary hover:bg-green-dark text-primary-foreground font-semibold" disabled={loading}>
                 {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
               </Button>
             </form>
