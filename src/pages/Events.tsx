@@ -4,7 +4,6 @@ import { ArrowLeft, SearchX, Calendar, MapPin, Clock, DollarSign, ExternalLink, 
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { SearchModule, SearchParams } from '@/components/SearchModule';
 import { EventDetailModal } from '@/components/EventDetailModal';
 import { SaveEventButton } from '@/components/SaveEventButton';
 import { useSavedEvents } from '@/hooks/useSavedEvents';
@@ -90,6 +89,66 @@ const sortLabels: Record<SortOption, string> = {
   'price-high': 'Price (High to Low)',
 };
 
+type PriceFilter = 'all' | 'free' | 'paid';
+
+interface EventSearchQuery {
+  location: string;
+  category: string;
+  date: Date | undefined;
+  dateRange: DateRange | undefined;
+  dateMode: 'single' | 'range';
+}
+
+// Single source of truth for the URL <-> filter-state contract, shared by
+// the initial useState hydration and the URL -> state sync effect so the
+// two can never drift apart.
+function parseFiltersFromParams(params: URLSearchParams): {
+  searchQuery: EventSearchQuery;
+  cities: string[];
+  price: PriceFilter;
+  sort: SortOption;
+} {
+  const urlDate = parseDateParam(params.get('date'));
+  const urlDateTo = parseDateParam(params.get('dateTo'));
+  const urlIsRange = !!(urlDate && urlDateTo && !isSameLocalDay(urlDate, urlDateTo));
+  const priceRaw = params.get('price');
+  const sortRaw = params.get('sort') as SortOption | null;
+
+  return {
+    searchQuery: {
+      location: params.get('location') || '',
+      category: params.get('category') || 'all',
+      date: urlDate && !urlIsRange ? urlDate : undefined,
+      dateRange: urlIsRange ? { from: urlDate, to: urlDateTo } as DateRange : undefined,
+      dateMode: (urlIsRange ? 'range' : 'single') as 'single' | 'range',
+    },
+    cities: (params.get('cities') || '').split(',').filter(Boolean),
+    price: priceRaw === 'free' || priceRaw === 'paid' ? priceRaw : 'all',
+    sort: sortRaw && Object.prototype.hasOwnProperty.call(sortLabels, sortRaw) ? sortRaw : 'featured',
+  };
+}
+
+function paramsFromFilters(
+  searchQuery: EventSearchQuery,
+  cities: string[],
+  price: PriceFilter,
+  sort: SortOption,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  if (searchQuery.location && searchQuery.location !== 'all') params.set('location', searchQuery.location);
+  if (searchQuery.category && searchQuery.category !== 'all') params.set('category', searchQuery.category);
+  if (cities.length > 0) params.set('cities', cities.join(','));
+  if (searchQuery.dateMode === 'single' && searchQuery.date) {
+    params.set('date', searchQuery.date.toISOString());
+  } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
+    params.set('date', searchQuery.dateRange.from.toISOString());
+    if (searchQuery.dateRange.to) params.set('dateTo', searchQuery.dateRange.to.toISOString());
+  }
+  if (price !== 'all') params.set('price', price);
+  if (sort !== 'featured') params.set('sort', sort);
+  return params;
+}
+
 const defaultFallbackImage = 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=400&h=300&fit=crop';
 
 const categoryFallbackImages: Record<string, string> = {
@@ -128,56 +187,47 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const { isSaved, toggleSave, loading: saveLoading } = useSavedEvents(userId);
-  const [sortBy, setSortBy] = useState<SortOption>('featured');
-  const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
+  const [sortBy, setSortBy] = useState<SortOption>(() => parseFiltersFromParams(searchParams).sort);
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>(() => parseFiltersFromParams(searchParams).price);
   const chipsRef = useRef<HTMLDivElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState(() => {
-    const urlDate = parseDateParam(searchParams.get('date'));
-    const urlDateTo = parseDateParam(searchParams.get('dateTo'));
-    const urlIsRange = !!(urlDate && urlDateTo && !isSameLocalDay(urlDate, urlDateTo));
-
-    return {
-      location: searchParams.get('location') || '',
-      category: searchParams.get('category') || 'all',
-      date: urlDate && !urlIsRange ? urlDate : undefined,
-      dateRange: urlIsRange ? { from: urlDate, to: urlDateTo } as DateRange : undefined,
-      dateMode: (urlIsRange ? 'range' : 'single') as 'single' | 'range',
-    };
-  });
+  const [searchQuery, setSearchQuery] = useState<EventSearchQuery>(() => parseFiltersFromParams(searchParams).searchQuery);
 
   // Selected cities within the chosen metro (client-side drill-down; search_events RPC has no city param)
-  const [selectedCities, setSelectedCities] = useState<string[]>(() => {
-    const raw = searchParams.get('cities');
-    return raw ? raw.split(',').filter(Boolean) : [];
-  });
-  const isFirstLocationRun = useRef(true);
+  const [selectedCities, setSelectedCities] = useState<string[]>(() => parseFiltersFromParams(searchParams).cities);
 
-  // Clear stale city selections when the metro changes (but not on initial mount, so
-  // deep links with both ?location= and ?cities= are respected).
-  useEffect(() => {
-    if (isFirstLocationRun.current) {
-      isFirstLocationRun.current = false;
-      return;
-    }
-    setSelectedCities([]);
-  }, [searchQuery.location]);
+  // Tracks the URL string this component itself last wrote, so the two
+  // effects below (state -> URL and URL -> state) never fight each other or
+  // loop: each only acts when the URL and state have actually diverged.
+  const lastSyncedParamsRef = useRef<string>(searchParams.toString());
 
-  // Keep the URL in sync so location/category/city/date filters survive navigation and reloads.
+  // Keep the URL in sync so location/category/city/date/price/sort filters
+  // survive navigation and reloads.
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (searchQuery.location && searchQuery.location !== 'all') params.set('location', searchQuery.location);
-    if (searchQuery.category && searchQuery.category !== 'all') params.set('category', searchQuery.category);
-    if (selectedCities.length > 0) params.set('cities', selectedCities.join(','));
-    if (searchQuery.dateMode === 'single' && searchQuery.date) {
-      params.set('date', searchQuery.date.toISOString());
-    } else if (searchQuery.dateMode === 'range' && searchQuery.dateRange?.from) {
-      params.set('date', searchQuery.dateRange.from.toISOString());
-      if (searchQuery.dateRange.to) params.set('dateTo', searchQuery.dateRange.to.toISOString());
+    const next = paramsFromFilters(searchQuery, selectedCities, priceFilter, sortBy);
+    const nextStr = next.toString();
+    if (nextStr !== lastSyncedParamsRef.current) {
+      lastSyncedParamsRef.current = nextStr;
+      setSearchParams(next, { replace: true });
     }
-    setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery.location, searchQuery.category, searchQuery.date, searchQuery.dateRange, searchQuery.dateMode, selectedCities]);
+  }, [searchQuery, selectedCities, priceFilter, sortBy]);
+
+  // Re-hydrate filter state whenever the URL changes from outside this
+  // component's own write above — same-route navigation (e.g. the logged-in
+  // Header search while already on /events), browser back/forward, or a
+  // manually edited/shared URL. Without this, those navigations updated the
+  // address bar but left the filter state (and therefore the results) stale.
+  useEffect(() => {
+    const currentStr = searchParams.toString();
+    if (currentStr === lastSyncedParamsRef.current) return;
+    lastSyncedParamsRef.current = currentStr;
+    const parsed = parseFiltersFromParams(searchParams);
+    setSearchQuery(parsed.searchQuery);
+    setSelectedCities(parsed.cities);
+    setPriceFilter(parsed.price);
+    setSortBy(parsed.sort);
+  }, [searchParams]);
 
   // Get auth state
   useEffect(() => {
@@ -555,7 +605,11 @@ export default function EventsPage() {
                       <h4 className="text-sm font-medium mb-2">Location</h4>
                       <Select
                         value={searchQuery.location || 'all'}
-                        onValueChange={(v) => setSearchQuery(q => ({ ...q, location: v === 'all' ? '' : v }))}
+                        onValueChange={(v) => {
+                          // Clear cities from the previous metro — they don't apply to the new one.
+                          setSelectedCities([]);
+                          setSearchQuery(q => ({ ...q, location: v === 'all' ? '' : v }));
+                        }}
                       >
                         <SelectTrigger className="w-full h-9 text-sm">
                           <MapPin className="w-3.5 h-3.5 text-muted-foreground mr-1" />
