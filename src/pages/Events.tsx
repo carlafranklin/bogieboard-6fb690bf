@@ -191,6 +191,16 @@ export default function EventsPage() {
   const [priceFilter, setPriceFilter] = useState<PriceFilter>(() => parseFiltersFromParams(searchParams).price);
   const chipsRef = useRef<HTMLDivElement>(null);
 
+  // Monotonic request sequence guards. Two filter changes in quick succession
+  // (e.g. an on-page category pick immediately followed by a Header-driven
+  // same-route navigation) start two overlapping fetches; without this, an
+  // older fetch resolving after a newer one silently overwrites correct
+  // results with stale data even though the URL and filter UI have already
+  // moved on. Each fetch only applies its response if it's still the latest
+  // one requested.
+  const eventsFetchSeqRef = useRef(0);
+  const facetsFetchSeqRef = useRef(0);
+
   const [searchQuery, setSearchQuery] = useState<EventSearchQuery>(() => parseFiltersFromParams(searchParams).searchQuery);
 
   // Selected cities within the chosen metro (client-side drill-down; search_events RPC has no city param)
@@ -306,6 +316,7 @@ export default function EventsPage() {
   // Actual display results: filtered by metro/category/date and, now, by selected cities
   // at the database level (search_events p_cities / partner_events .in('city', ...)).
   const fetchEvents = async () => {
+    const seq = ++eventsFetchSeqRef.current;
     try {
       setLoading(true);
       const { dateFrom, dateTo } = getDateRange();
@@ -333,6 +344,8 @@ export default function EventsPage() {
         partnerQuery,
       ]);
 
+      if (seq !== eventsFetchSeqRef.current) return; // superseded by a newer fetch
+
       if (canonicalRes.error) {
         console.error('Error fetching canonical events:', canonicalRes.error);
       }
@@ -344,15 +357,17 @@ export default function EventsPage() {
       const allEvents = [...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents];
       setEvents(allEvents);
     } catch (err) {
+      if (seq !== eventsFetchSeqRef.current) return;
       console.error('Failed to fetch events:', err);
     } finally {
-      setLoading(false);
+      if (seq === eventsFetchSeqRef.current) setLoading(false);
     }
   };
 
   // City-option facet: same metro/category/date scope, but never filtered by the current
   // city selection, so picking one city never removes other cities from the picker.
   const fetchCityFacets = async () => {
+    const seq = ++facetsFetchSeqRef.current;
     try {
       const { dateFrom, dateTo } = getDateRange();
 
@@ -372,6 +387,8 @@ export default function EventsPage() {
           .order('event_date'),
       ]);
 
+      if (seq !== facetsFetchSeqRef.current) return; // superseded by a newer fetch
+
       if (canonicalRes.error) {
         console.error('Error fetching city facets:', canonicalRes.error);
       }
@@ -379,6 +396,7 @@ export default function EventsPage() {
       const partnerEvents: CanonicalEvent[] = (partnerRes.data || []).map(mapPartnerEvent);
       setFacetEvents([...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents]);
     } catch (err) {
+      if (seq !== facetsFetchSeqRef.current) return;
       console.error('Failed to fetch city facets:', err);
     }
   };
