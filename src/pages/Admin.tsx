@@ -167,7 +167,12 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [profilesRes, rolesRes, catsRes, subsRes, feedsRes, partnerEventsRes, eventCategoriesRes, canonicalEventsRes, partnerProfilesRes, savedEventsRes, allFeedsRes, businessOwnersRes] = await Promise.all([
+    const nowISO = new Date().toISOString();
+    const [
+      profilesRes, rolesRes, catsRes, subsRes, feedsRes, partnerEventsRes, eventCategoriesRes,
+      canonicalTotalRes, canonicalActiveRes, canonicalUpcomingActiveRes, canonicalExpiredRes, canonicalCancelledRes, canonicalPostponedRes,
+      partnerProfilesRes, savedEventsRes, allFeedsRes, businessOwnersRes,
+    ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
       supabase.from('categories').select('*').order('display_order'),
@@ -177,7 +182,16 @@ export default function AdminPage() {
       supabase.from('event_categories').select('category_id'),
       // Real event inventory (Ticketmaster-ingested) — replaces the legacy `events` table,
       // which is a disconnected pre-ingestion schema and was producing a meaningless count.
-      supabase.from('canonical_events').select('status, start_time'),
+      // Count-only (head: true) so these never fetch row data — PostgREST's default Max Rows
+      // (1,000) caps any row-returning select, which previously silently capped every stat
+      // derived from it once inventory passed 1,000 rows. Six small COUNT queries instead of
+      // one big row fetch + client-side filtering.
+      supabase.from('canonical_events').select('*', { count: 'exact', head: true }),
+      supabase.from('canonical_events').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('canonical_events').select('*', { count: 'exact', head: true }).eq('status', 'active').gte('start_time', nowISO),
+      supabase.from('canonical_events').select('*', { count: 'exact', head: true }).eq('status', 'expired'),
+      supabase.from('canonical_events').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
+      supabase.from('canonical_events').select('*', { count: 'exact', head: true }).eq('status', 'postponed'),
       supabase.from('partner_profiles').select('user_id, business_name, address'),
       supabase.from('saved_events').select('id', { count: 'exact', head: true }),
       // Unfiltered feed_registry, for platform-wide feed health — distinct from the
@@ -215,12 +229,7 @@ export default function AdminPage() {
     const usersWithAnyRole = new Set(allRoles.map(r => r.user_id));
     const unassignedUsers = profiles.filter(p => !usersWithAnyRole.has(p.user_id)).length;
 
-    const canonicalEvents = canonicalEventsRes.data || [];
-    const now = new Date();
-    const upcomingActiveCanonicalEvents = canonicalEvents.filter(
-      e => e.status === 'active' && e.start_time && new Date(e.start_time) >= now
-    ).length;
-
+    const now = new Date(nowISO);
     const partnerProfiles = partnerProfilesRes.data || [];
     const partnerEventsAll = partnerEventsRes.data || [];
 
@@ -250,12 +259,12 @@ export default function AdminPage() {
       adminUsers: roleCount('admin'),
       unassignedUsers,
       totalCategories: cats.length,
-      totalCanonicalEvents: canonicalEvents.length,
-      activeCanonicalEvents: canonicalEvents.filter(e => e.status === 'active').length,
-      upcomingActiveCanonicalEvents,
-      expiredCanonicalEvents: canonicalEvents.filter(e => e.status === 'expired').length,
-      cancelledCanonicalEvents: canonicalEvents.filter(e => e.status === 'cancelled').length,
-      postponedCanonicalEvents: canonicalEvents.filter(e => e.status === 'postponed').length,
+      totalCanonicalEvents: canonicalTotalRes.count ?? 0,
+      activeCanonicalEvents: canonicalActiveRes.count ?? 0,
+      upcomingActiveCanonicalEvents: canonicalUpcomingActiveRes.count ?? 0,
+      expiredCanonicalEvents: canonicalExpiredRes.count ?? 0,
+      cancelledCanonicalEvents: canonicalCancelledRes.count ?? 0,
+      postponedCanonicalEvents: canonicalPostponedRes.count ?? 0,
       totalPartnerProfiles: partnerProfiles.length,
       partnerProfilesWithAddress: partnerProfiles.filter(p => !!p.address).length,
       partnerEventsPending: partnerEventsAll.filter(e => e.status === 'pending').length,
