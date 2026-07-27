@@ -91,6 +91,11 @@ const sortLabels: Record<SortOption, string> = {
 
 type PriceFilter = 'all' | 'free' | 'paid';
 
+// Load More page size for the canonical (Ticketmaster) side of results.
+// partner_events is fetched in full and never paginated — its volume is
+// small enough not to need it.
+const EVENTS_PAGE_SIZE = 200;
+
 interface EventSearchQuery {
   location: string;
   category: string;
@@ -180,7 +185,14 @@ export default function EventsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { metros, loading: metrosLoading, error: metrosError } = useDiscoverableMetros();
   const [selectedEvent, setSelectedEvent] = useState<CanonicalEvent | null>(null);
-  const [events, setEvents] = useState<CanonicalEvent[]>([]);
+  // Canonical (Ticketmaster) events accumulate across Load More pages; partner
+  // events are always fetched in full and kept separate so appending a new
+  // canonical page never re-duplicates them. displayEvents merges the two.
+  const [canonicalEvents, setCanonicalEvents] = useState<CanonicalEvent[]>([]);
+  const [partnerEventsList, setPartnerEventsList] = useState<CanonicalEvent[]>([]);
+  const [canonicalOffset, setCanonicalOffset] = useState(0);
+  const [hasMoreEvents, setHasMoreEvents] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   // City options must stay stable regardless of the current city selection (option 7a), so
   // they're sourced from a separate, city-unfiltered fetch scoped only to metro/category/date.
   const [facetEvents, setFacetEvents] = useState<CanonicalEvent[]>([]);
@@ -315,13 +327,30 @@ export default function EventsPage() {
 
   // Actual display results: filtered by metro/category/date and, now, by selected cities
   // at the database level (search_events p_cities / partner_events .in('city', ...)).
-  const fetchEvents = async () => {
+  // append=true fetches the next canonical page (Load More) and appends it;
+  // otherwise this is a fresh filter-driven load that resets back to page 1.
+  const fetchEvents = async (options: { append?: boolean } = {}) => {
+    const { append = false } = options;
     const seq = ++eventsFetchSeqRef.current;
+    const offset = append ? canonicalOffset : 0;
     try {
-      setLoading(true);
+      if (append) setLoadingMore(true); else setLoading(true);
       const { dateFrom, dateTo } = getDateRange();
       const cityFilter = selectedCities.length > 0 ? selectedCities : undefined;
 
+      const canonicalPromise = supabase.rpc('search_events', {
+        p_metro_slug: metroSlug,
+        p_category_slug: categorySlug,
+        p_date_from: dateFrom,
+        p_date_to: dateTo,
+        p_limit: EVENTS_PAGE_SIZE,
+        p_offset: offset,
+        p_cities: cityFilter,
+      });
+
+      // partner_events is small enough to always fetch in full and is not
+      // paginated — only re-fetch it on a fresh load, not on Load More, so
+      // appending a canonical page never re-adds/duplicates partner rows.
       let partnerQuery = supabase
         .from('partner_events')
         .select('*, partner_profiles!inner(business_name), categories(name)')
@@ -333,15 +362,8 @@ export default function EventsPage() {
       partnerQuery = partnerQuery.order('event_date');
 
       const [canonicalRes, partnerRes] = await Promise.all([
-        supabase.rpc('search_events', {
-          p_metro_slug: metroSlug,
-          p_category_slug: categorySlug,
-          p_date_from: dateFrom,
-          p_date_to: dateTo,
-          p_limit: 200,
-          p_cities: cityFilter,
-        }),
-        partnerQuery,
+        canonicalPromise,
+        append ? Promise.resolve(null) : partnerQuery,
       ]);
 
       if (seq !== eventsFetchSeqRef.current) return; // superseded by a newer fetch
@@ -349,18 +371,29 @@ export default function EventsPage() {
       if (canonicalRes.error) {
         console.error('Error fetching canonical events:', canonicalRes.error);
       }
-      if (partnerRes.error) {
-        console.error('Error fetching partner events:', partnerRes.error);
+      const newCanonical: CanonicalEvent[] = (canonicalRes.data as CanonicalEvent[]) || [];
+
+      if (append) {
+        setCanonicalEvents(prev => [...prev, ...newCanonical]);
+      } else {
+        setCanonicalEvents(newCanonical);
+        if (partnerRes) {
+          if (partnerRes.error) {
+            console.error('Error fetching partner events:', partnerRes.error);
+          }
+          setPartnerEventsList((partnerRes.data || []).map(mapPartnerEvent));
+        }
       }
 
-      const partnerEvents: CanonicalEvent[] = (partnerRes.data || []).map(mapPartnerEvent);
-      const allEvents = [...(canonicalRes.data as CanonicalEvent[] || []), ...partnerEvents];
-      setEvents(allEvents);
+      setCanonicalOffset(offset + newCanonical.length);
+      setHasMoreEvents(newCanonical.length === EVENTS_PAGE_SIZE);
     } catch (err) {
       if (seq !== eventsFetchSeqRef.current) return;
       console.error('Failed to fetch events:', err);
     } finally {
-      if (seq === eventsFetchSeqRef.current) setLoading(false);
+      if (seq === eventsFetchSeqRef.current) {
+        if (append) setLoadingMore(false); else setLoading(false);
+      }
     }
   };
 
@@ -423,9 +456,12 @@ export default function EventsPage() {
     setSelectedCities((prev) => (prev.includes(city) ? prev.filter((c) => c !== city) : [...prev, city]));
   };
 
-  // Filter and sort (city filtering now happens in fetchEvents at the database level)
+  // Filter and sort (city filtering now happens in fetchEvents at the database level).
+  // Merges all currently-loaded canonical pages with the (unpaginated) partner events;
+  // price/sort here only ever operate over what's been loaded so far — see the
+  // Load More button's note in the JSX below.
   const displayEvents = useMemo(() => {
-    let filtered = events;
+    let filtered: CanonicalEvent[] = [...canonicalEvents, ...partnerEventsList];
 
     // Price filter
     if (priceFilter === 'free') filtered = filtered.filter(e => e.is_free);
@@ -469,7 +505,7 @@ export default function EventsPage() {
     }
 
     return sorted;
-  }, [events, priceFilter, sortBy]);
+  }, [canonicalEvents, partnerEventsList, priceFilter, sortBy]);
 
   const locationLabel = searchQuery.location && searchQuery.location !== 'all'
     ? metros.find((m) => m.value === searchQuery.location)?.label
@@ -792,6 +828,7 @@ export default function EventsPage() {
               <p className="text-muted-foreground">Loading events...</p>
             </div>
           ) : displayEvents.length > 0 ? (
+            <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {displayEvents.map((event, index) => {
                 const eventImage = getEventImage(event);
@@ -891,6 +928,19 @@ export default function EventsPage() {
                 );
               })}
             </div>
+            {hasMoreEvents && (
+              <div className="flex justify-center mt-8">
+                <Button
+                  onClick={() => fetchEvents({ append: true })}
+                  disabled={loadingMore}
+                  variant="outline"
+                  size="lg"
+                >
+                  {loadingMore ? 'Loading more...' : 'Load More'}
+                </Button>
+              </div>
+            )}
+            </>
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
