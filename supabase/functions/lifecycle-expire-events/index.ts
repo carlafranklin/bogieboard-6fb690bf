@@ -89,19 +89,23 @@ Deno.serve(async (req) => {
       if (sampleErr) throw sampleErr
       sample = sampleRows || []
     } else {
-      // Single atomic UPDATE. count:'exact', head:true returns just the
-      // affected-row count (no row body), so this is not subject to the
-      // Max Rows cap either. A second identical run naturally affects 0
-      // rows, since already-expired rows no longer match status='active'.
-      const { count: updatedCount, error: updateErr } = await supabase
+      // Single atomic UPDATE, same filter as the candidateCount query above.
+      // Chaining .select(..., { count: 'exact', head: true }) onto an UPDATE
+      // to read its affected-row count back was tried and observed to be
+      // unreliable (supabase-js returned null even though the UPDATE itself
+      // succeeded) — so instead we trust candidateCount, computed moments
+      // earlier via the identical filter, as this update's row count. Not
+      // re-selecting the updated rows to count them directly on purpose:
+      // that would reintroduce the PostgREST Max Rows cap for any backlog
+      // over 1,000, the same issue count:'exact' head:true was chosen to avoid.
+      const { error: updateErr } = await supabase
         .from('canonical_events')
         .update({ status: 'expired' })
         .eq('status', 'active')
         .or(staleFilter)
-        .select('id', { count: 'exact', head: true })
 
       if (updateErr) throw updateErr
-      expiredCount = updatedCount ?? 0
+      expiredCount = candidateCount ?? 0
     }
 
     const endedAt = new Date()
