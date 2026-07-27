@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +51,14 @@ const VERIFICATION_STATUS_CONFIG: Record<string, { label: string }> = {
   suspended: { label: 'Suspended' },
 };
 
+// Phase A: event creation/submission gating copy, keyed by businesses.verification_status
+// (not the partner_profiles mirror above — see businessVerificationStatus state below).
+const EVENT_GATING_MESSAGES: Record<string, string> = {
+  pending: 'Your partner account is pending review. You’ll be able to submit events after approval.',
+  rejected: 'Your partner application was not approved. Event submission is disabled.',
+  suspended: 'Your partner account is suspended. Event submission is disabled.',
+};
+
 export default function PartnerDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -57,6 +66,10 @@ export default function PartnerDashboard() {
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Partial<PartnerProfile>>({});
+  // Source of truth for event-submission gating is businesses.verification_status,
+  // not partner_profiles.verification_status above (PR #57's sync to partner_profiles
+  // is non-fatal and can lag) — same source the partner_events INSERT RLS policy uses.
+  const [businessVerificationStatus, setBusinessVerificationStatus] = useState<string | null>(null);
   const [employees, setEmployees] = useState<PartnerEmployee[]>([]);
   const [events, setEvents] = useState<PartnerEvent[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -111,12 +124,27 @@ export default function PartnerDashboard() {
     if (!userId) return;
     const fetchAll = async () => {
       setLoading(true);
-      const [catsRes, subsRes] = await Promise.all([
+      const [catsRes, subsRes, memberRes] = await Promise.all([
         supabase.from('categories').select('*').order('display_order'),
         supabase.from('subcategories').select('*').order('name'),
+        supabase.from('business_members').select('business_id').eq('user_id', userId).eq('role', 'owner').maybeSingle(),
       ]);
       if (catsRes.data) setCategories(catsRes.data);
       if (subsRes.data) setSubcategories(subsRes.data);
+
+      if (memberRes.data?.business_id) {
+        // Cast: 'businesses' isn't in the generated Database Tables type (same
+        // pre-existing generated-types gap already noted in IngestionHealthPanel.tsx
+        // and BusinessApplicationsPanel.tsx).
+        const { data: biz } = await supabase
+          .from('businesses' as any)
+          .select('verification_status')
+          .eq('id', memberRes.data.business_id)
+          .maybeSingle();
+        setBusinessVerificationStatus((biz as any)?.verification_status ?? null);
+      } else {
+        setBusinessVerificationStatus(null);
+      }
 
       const { data: pp } = await supabase.from('partner_profiles').select('*').eq('user_id', userId).maybeSingle();
       if (pp) {
@@ -363,6 +391,11 @@ export default function PartnerDashboard() {
       </div>
     );
   }
+
+  const canSubmitEvents = businessVerificationStatus === 'approved';
+  const eventGatingMessage = businessVerificationStatus
+    ? (EVENT_GATING_MESSAGES[businessVerificationStatus] ?? EVENT_GATING_MESSAGES.pending)
+    : 'We couldn’t verify your business account status. Please contact support before submitting events.';
 
   const StatusBadge = ({ status }: { status: string }) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
@@ -757,7 +790,17 @@ export default function PartnerDashboard() {
 
               {/* EVENTS TAB */}
               <TabsContent value="events">
-                {/* Event Form */}
+                {!canSubmitEvents && (
+                  <Alert className="mb-6">
+                    <AlertTitle>Event submission unavailable</AlertTitle>
+                    <AlertDescription>{eventGatingMessage}</AlertDescription>
+                  </Alert>
+                )}
+                {/* Event Form — hidden entirely (not just disabled) when the business
+                    isn't approved, so there's nothing to submit through the UI, matching
+                    the businesses.verification_status = 'approved' requirement enforced
+                    at the RLS layer on partner_events INSERT. */}
+                {canSubmitEvents && (
                 <div className="bg-card rounded-2xl shadow-sm border border-border p-6 mb-6">
                   <h2 className="font-display text-lg font-semibold mb-4">{editingEventId ? 'Edit Event' : 'Create New Event'}</h2>
 
@@ -934,6 +977,7 @@ export default function PartnerDashboard() {
                     )}
                   </div>
                 </div>
+                )}
 
                 {/* Event List */}
                 <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
@@ -974,8 +1018,8 @@ export default function PartnerDashboard() {
                             </div>
                           </div>
                           <div className="flex gap-1 shrink-0 ml-2">
-                            <Button size="sm" variant="outline" onClick={() => handleEditEvent(evt)}>Edit</Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDuplicateEvent(evt)} title="Duplicate">
+                            <Button size="sm" variant="outline" disabled={!canSubmitEvents} onClick={() => handleEditEvent(evt)}>Edit</Button>
+                            <Button size="sm" variant="ghost" disabled={!canSubmitEvents} onClick={() => handleDuplicateEvent(evt)} title="Duplicate">
                               <Plus className="w-4 h-4" />
                             </Button>
                             <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeleteEvent(evt.id)}>
