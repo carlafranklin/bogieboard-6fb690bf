@@ -42,6 +42,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   rejected: { label: 'Rejected', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
 };
 
+// partner_profiles.verification_status real values: pending, approved, rejected, suspended.
+const VERIFICATION_STATUS_CONFIG: Record<string, { label: string }> = {
+  pending: { label: 'Pending Verification' },
+  approved: { label: 'Approved Partner' },
+  rejected: { label: 'Application Rejected' },
+  suspended: { label: 'Suspended' },
+};
+
 export default function PartnerDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -424,7 +432,9 @@ export default function PartnerDashboard() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h2 className="font-display text-xl font-bold text-foreground">{profile.business_name || 'Unnamed Business'}</h2>
-                          <Badge variant="outline" className="text-xs">{(profile as any).verification_status === 'verified' ? '✓ Verified' : 'Pending Verification'}</Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {(VERIFICATION_STATUS_CONFIG[profile.verification_status ?? 'pending'] ?? VERIFICATION_STATUS_CONFIG.pending).label}
+                          </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{profile.description || 'No description yet.'}</p>
                         {(profile.city || profile.state) && (
