@@ -20,6 +20,7 @@ export function Header() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOps, setIsOps] = useState(false);
   const [isPartner, setIsPartner] = useState(false);
   const navigate = useNavigate();
 
@@ -38,6 +39,14 @@ export function Header() {
         console.log('[Header] has_role partner for', uid, ':', data, error);
         setIsPartner(data === true);
       });
+
+      // Cast: 'ops' isn't in the generated app_role enum type yet (added by a
+      // later migration, generated types not regenerated) — same pre-existing
+      // generated-types gap already noted in Admin.tsx.
+      (supabase.rpc as any)('has_role', { _user_id: uid, _role: 'ops' }).then(({ data, error }: { data: boolean | null; error: unknown }) => {
+        console.log('[Header] has_role ops for', uid, ':', data, error);
+        setIsOps(data === true);
+      });
     };
 
     // Non-async callback prevents auth client deadlock
@@ -45,7 +54,7 @@ export function Header() {
       setIsLoggedIn(!!session);
       setUserId(session?.user?.id || null);
       if (session) loadRoles(session.user.id);
-      else { setIsAdmin(false); setIsPartner(false); }
+      else { setIsAdmin(false); setIsOps(false); setIsPartner(false); }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -131,7 +140,7 @@ export function Header() {
                 <Link to="/events" className="text-sm font-medium text-white hover:text-white/80 transition-colors mr-2">
                   Events
                 </Link>
-                {isAdmin && (
+                {(isAdmin || isOps) && (
                   <Link to="/admin">
                     <Button variant="outline" size="sm">
                       <Shield className="w-4 h-4 mr-2" />
@@ -193,7 +202,7 @@ export function Header() {
                     </Button>
                   </div>
                   <Link to="/events" className="text-sm font-medium text-white" onClick={() => setIsMenuOpen(false)}>Events</Link>
-                  {isAdmin && (
+                  {(isAdmin || isOps) && (
                     <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full">
                         <Shield className="w-4 h-4 mr-2" />Admin
