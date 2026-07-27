@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock, AlertTriangle, RefreshCw, MapPin, Power, PowerOff, Search } from 'lucide-react';
+import { Users, LayoutGrid, BarChart3, Plus, Pencil, Trash2, Save, X, Shield, UserCog, Globe, Loader2, ClipboardCheck, CheckCircle2, XCircle, Eye, Building2, Calendar, Clock, AlertTriangle, RefreshCw, MapPin, Power, PowerOff, Search, Activity } from 'lucide-react';
 import { getSafeErrorMessage } from '@/lib/errorUtils';
 import { categoryNameSchema, subcategoryNameSchema } from '@/lib/validation';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { IngestionHealthPanel } from '@/components/admin/IngestionHealthPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
@@ -831,6 +832,7 @@ export default function AdminPage() {
                 </TabsTrigger>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
                 <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
+                <TabsTrigger value="ingestion" className="gap-2"><Activity className="w-4 h-4" />Ingestion Health</TabsTrigger>
                 <TabsTrigger value="metros" className="gap-2"><MapPin className="w-4 h-4" />Metro Areas</TabsTrigger>
                 <TabsTrigger value="stats" className="gap-2"><BarChart3 className="w-4 h-4" />Statistics</TabsTrigger>
               </TabsList>
@@ -1693,6 +1695,11 @@ export default function AdminPage() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              </TabsContent>
+
+              {/* Ingestion Health Tab — read-only, no mutation controls */}
+              <TabsContent value="ingestion">
+                <IngestionHealthPanel />
               </TabsContent>
             </Tabs>
           </motion.div>
