@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { IngestionHealthPanel } from '@/components/admin/IngestionHealthPanel';
+import { BusinessApplicationsPanel } from '@/components/admin/BusinessApplicationsPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
@@ -377,10 +378,17 @@ export default function AdminPage() {
       return;
     }
 
-    const { error } = await supabase.from('partner_events').update({
-      status: 'approved',
-      moderation_notes: moderationNotes[event.id] || null
-    }).eq('id', event.id);
+    // admin_moderate_event: writes admin_audit_log before/after rows, same status-only
+    // mutation as before (does not change visibility rules — search_events/Events.tsx
+    // still gate purely on partner_events.status = 'approved').
+    // Cast: admin_moderate_event isn't in the generated Database Functions type
+    // (added by 20260527_admin_phase1_audit_and_rpcs.sql, generated types not
+    // regenerated since — same pre-existing gap noted elsewhere in this file).
+    const { error } = await (supabase.rpc as any)('admin_moderate_event', {
+      p_event_id: event.id,
+      p_status: 'approved',
+      p_notes: moderationNotes[event.id] || null,
+    });
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
@@ -395,10 +403,11 @@ export default function AdminPage() {
       toast({ title: 'Notes required', description: 'Please provide a reason for rejection.', variant: 'destructive' });
       return;
     }
-    const { error } = await supabase.from('partner_events').update({ 
-      status: 'rejected', 
-      moderation_notes: moderationNotes[eventId] 
-    }).eq('id', eventId);
+    const { error } = await (supabase.rpc as any)('admin_moderate_event', {
+      p_event_id: eventId,
+      p_status: 'rejected',
+      p_notes: moderationNotes[eventId],
+    });
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
@@ -852,6 +861,7 @@ export default function AdminPage() {
                     <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{moderationCounts.pending}</Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="business-applications" className="gap-2"><Building2 className="w-4 h-4" />Business Applications</TabsTrigger>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
                 <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
                 <TabsTrigger value="ingestion" className="gap-2"><Activity className="w-4 h-4" />Ingestion Health</TabsTrigger>
@@ -1722,6 +1732,11 @@ export default function AdminPage() {
               {/* Ingestion Health Tab — read-only, no mutation controls */}
               <TabsContent value="ingestion">
                 <IngestionHealthPanel />
+              </TabsContent>
+
+              {/* Business Applications Tab — approve/reject via admin_review_business RPC */}
+              <TabsContent value="business-applications">
+                <BusinessApplicationsPanel />
               </TabsContent>
             </Tabs>
           </motion.div>
