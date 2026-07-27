@@ -45,6 +45,7 @@ export default function AdminPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOps, setIsOps] = useState(false);
   const [activeTab, setActiveTab] = useState('users');
 
   // Users state
@@ -149,7 +150,7 @@ export default function AdminPage() {
 
 
   useEffect(() => {
-    const checkAdmin = async () => {
+    const checkAdminOrOps = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate('/auth'); return; }
 
@@ -158,16 +159,25 @@ export default function AdminPage() {
         .select('role')
         .eq('user_id', session.user.id);
 
-      const hasAdmin = roles?.some(r => r.role === 'admin');
-      if (!hasAdmin) {
+      const hasAdmin = roles?.some(r => r.role === 'admin') ?? false;
+      // Cast: 'ops' isn't in the generated app_role enum type yet (added by a
+      // later migration, generated types not regenerated) — same pre-existing
+      // generated-types gap already noted elsewhere in this file.
+      const hasOps = roles?.some(r => (r.role as string) === 'ops') ?? false;
+
+      if (!hasAdmin && !hasOps) {
         toast({ title: 'Access Denied', description: 'Admin privileges required.', variant: 'destructive' });
         navigate('/');
         return;
       }
-      setIsAdmin(true);
+      setIsAdmin(hasAdmin);
+      setIsOps(hasOps);
+      // Ops-only users (no admin role) land on the one tab they're guaranteed
+      // to have — 'users' (the default) doesn't exist for them.
+      if (!hasAdmin && hasOps) { setActiveTab('business-applications'); }
       await loadData();
     };
-    checkAdmin();
+    checkAdminOrOps();
   }, [navigate]);
 
   const loadData = async () => {
@@ -771,7 +781,7 @@ export default function AdminPage() {
 
 
 
-  if (!isAdmin || loading) {
+  if ((!isAdmin && !isOps) || loading) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -799,8 +809,8 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Feed Status Notices */}
-            {feedAlerts.length > 0 && (() => {
+            {/* Feed Status Notices — admin only; links to Ingestion Health, which Ops can't access */}
+            {isAdmin && feedAlerts.length > 0 && (() => {
               const hasDestructive = feedAlerts.some(a => a.severity === 'destructive');
               return (
                 <Alert variant={hasDestructive ? 'destructive' : 'default'} className="mb-6">
@@ -834,7 +844,8 @@ export default function AdminPage() {
               );
             })()}
 
-            {/* Stats Cards */}
+            {/* Stats Cards — admin only; Ops has no Statistics access */}
+            {isAdmin && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
               {[
                 { label: 'Total Users', value: stats.totalUsers, color: 'bg-primary/10 text-primary' },
@@ -850,11 +861,14 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+            )}
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="mb-6">
+                {isAdmin && (
                 <TabsTrigger value="users" className="gap-2"><Users className="w-4 h-4" />Users</TabsTrigger>
+                )}
                 <TabsTrigger value="moderation" className="gap-2">
                   <ClipboardCheck className="w-4 h-4" />Moderation
                   {moderationCounts.pending > 0 && (
@@ -862,14 +876,19 @@ export default function AdminPage() {
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="business-applications" className="gap-2"><Building2 className="w-4 h-4" />Business Applications</TabsTrigger>
+                {isAdmin && (
+                <>
                 <TabsTrigger value="categories" className="gap-2"><LayoutGrid className="w-4 h-4" />Categories</TabsTrigger>
                 <TabsTrigger value="scrape" className="gap-2"><Globe className="w-4 h-4" />Scrape Sources</TabsTrigger>
                 <TabsTrigger value="ingestion" className="gap-2"><Activity className="w-4 h-4" />Ingestion Health</TabsTrigger>
                 <TabsTrigger value="metros" className="gap-2"><MapPin className="w-4 h-4" />Metro Areas</TabsTrigger>
                 <TabsTrigger value="stats" className="gap-2"><BarChart3 className="w-4 h-4" />Statistics</TabsTrigger>
+                </>
+                )}
               </TabsList>
 
-              {/* Users Tab */}
+              {/* Users Tab — admin only */}
+              {isAdmin && (
               <TabsContent value="users">
                 <div className="bg-card rounded-xl border border-border overflow-hidden">
                   <div className="overflow-x-auto">
@@ -959,8 +978,10 @@ export default function AdminPage() {
                   </div>
                 </div>
               </TabsContent>
+              )}
 
-              {/* Categories Tab */}
+              {/* Categories Tab — admin only */}
+              {isAdmin && (
               <TabsContent value="categories">
                 <div className="bg-card rounded-xl border border-border p-6">
                   {/* Add Category */}
@@ -1109,8 +1130,10 @@ export default function AdminPage() {
                   </div>
                 </div>
               </TabsContent>
+              )}
 
-              {/* Scrape Sources Tab */}
+              {/* Scrape Sources Tab — admin only */}
+              {isAdmin && (
               <TabsContent value="scrape">
                 <div className="bg-card rounded-xl border border-border p-6">
                   <div className="flex items-center justify-between mb-6">
@@ -1246,8 +1269,9 @@ export default function AdminPage() {
                   </div>
                 </div>
               </TabsContent>
+              )}
 
-              {/* Moderation Tab */}
+              {/* Moderation Tab — admin and ops */}
               <TabsContent value="moderation">
                 <div className="bg-card rounded-xl border border-border p-6">
                   <div className="flex items-center justify-between mb-6">
@@ -1399,7 +1423,8 @@ export default function AdminPage() {
                 </div>
               </TabsContent>
 
-              {/* Stats Tab */}
+              {/* Stats Tab — admin only */}
+              {isAdmin && (
               <TabsContent value="stats">
                 <div className="bg-card rounded-xl border border-border p-6 space-y-8">
                   <div>
@@ -1533,8 +1558,10 @@ export default function AdminPage() {
                   </div>
                 </div>
               </TabsContent>
+              )}
 
-              {/* Metro Areas Tab */}
+              {/* Metro Areas Tab — admin only */}
+              {isAdmin && (
               <TabsContent value="metros">
                 <div className="bg-card rounded-xl border border-border p-6 space-y-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -1728,13 +1755,16 @@ export default function AdminPage() {
                   </AlertDialogContent>
                 </AlertDialog>
               </TabsContent>
+              )}
 
-              {/* Ingestion Health Tab — read-only, no mutation controls */}
+              {/* Ingestion Health Tab — read-only, no mutation controls, admin only */}
+              {isAdmin && (
               <TabsContent value="ingestion">
                 <IngestionHealthPanel />
               </TabsContent>
+              )}
 
-              {/* Business Applications Tab — approve/reject via admin_review_business RPC */}
+              {/* Business Applications Tab — approve/reject via admin_review_business RPC; admin and ops */}
               <TabsContent value="business-applications">
                 <BusinessApplicationsPanel />
               </TabsContent>
