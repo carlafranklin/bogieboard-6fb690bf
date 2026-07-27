@@ -112,9 +112,12 @@ export default function AdminPage() {
   // Feed health state
   interface FeedHealthItem {
     feed_name: string;
-    status: 'healthy' | 'stale' | 'error' | 'never_fetched';
-    last_error: string | null;
-    hours_since_fetch: number | null;
+    // 'destructive' only for a true error signal (last_error / active backoff /
+    // consecutive_failures > 0). "Due for next run" and "never fetched" are
+    // normal, expected states now that ingest-dispatcher/ingest-worker run on
+    // their own crons — never treated as failures.
+    severity: 'destructive' | 'warning';
+    reasons: string[];
     metro_area_slug: string;
   }
   const [feedAlerts, setFeedAlerts] = useState<FeedHealthItem[]>([]);
@@ -290,37 +293,57 @@ export default function AdminPage() {
     try {
       const { data: feeds } = await supabase
         .from('feed_registry')
-        .select('feed_name, last_fetched_at, last_error, enabled, metro_area_slug')
+        .select('feed_name, last_fetched_at, last_error, enabled, metro_area_slug, scrape_interval_hours, backoff_until, consecutive_failures')
         .eq('enabled', true);
 
+      // Cast through unknown: the generated Database type for feed_registry is
+      // missing backoff_until/consecutive_failures (real columns, already read
+      // elsewhere in this file) — same pre-existing generated-types gap noted
+      // in IngestionHealthPanel.tsx, not something to fix here.
+      const typedFeeds = (feeds || []) as unknown as {
+        feed_name: string;
+        last_fetched_at: string | null;
+        last_error: string | null;
+        enabled: boolean;
+        metro_area_slug: string;
+        scrape_interval_hours: number | null;
+        backoff_until: string | null;
+        consecutive_failures: number | null;
+      }[];
+
       const now = new Date();
-      const STALE_HOURS = 48;
       const alerts: FeedHealthItem[] = [];
 
-      for (const feed of feeds || []) {
-        let status: FeedHealthItem['status'] = 'healthy';
-        let hoursSinceFetch: number | null = null;
+      for (const feed of typedFeeds) {
+        // True error signals only — never "due for next run" alone.
+        const reasons: string[] = [];
+        if (feed.last_error) reasons.push(feed.last_error);
+        if (feed.backoff_until && new Date(feed.backoff_until) > now) {
+          reasons.push(`Backed off until ${new Date(feed.backoff_until).toLocaleString()}`);
+        }
+        if ((feed.consecutive_failures ?? 0) > 0) {
+          const n = feed.consecutive_failures ?? 0;
+          reasons.push(`${n} consecutive failure${n === 1 ? '' : 's'}`);
+        }
+
+        if (reasons.length > 0) {
+          alerts.push({ feed_name: feed.feed_name, severity: 'destructive', reasons, metro_area_slug: feed.metro_area_slug });
+          continue;
+        }
 
         if (!feed.last_fetched_at) {
-          status = 'never_fetched';
-        } else {
-          hoursSinceFetch = Math.round((now.getTime() - new Date(feed.last_fetched_at).getTime()) / (1000 * 60 * 60));
-          if (feed.last_error) {
-            status = 'error';
-          } else if (hoursSinceFetch > STALE_HOURS) {
-            status = 'stale';
-          }
+          alerts.push({ feed_name: feed.feed_name, severity: 'warning', reasons: ['Never fetched'], metro_area_slug: feed.metro_area_slug });
+          continue;
         }
 
-        if (status !== 'healthy') {
-          alerts.push({
-            feed_name: feed.feed_name,
-            status,
-            last_error: feed.last_error,
-            hours_since_fetch: hoursSinceFetch,
-            metro_area_slug: feed.metro_area_slug,
-          });
+        // Interval-aware due check (matches IngestionHealthPanel's computation)
+        // instead of the old flat 48-hour rule.
+        const intervalMs = (feed.scrape_interval_hours ?? 12) * 60 * 60 * 1000;
+        const nextDueMs = new Date(feed.last_fetched_at).getTime() + intervalMs;
+        if (nextDueMs <= now.getTime()) {
+          alerts.push({ feed_name: feed.feed_name, severity: 'warning', reasons: ['Due for next run'], metro_area_slug: feed.metro_area_slug });
         }
+        // else: healthy — not added to alerts, same as before.
       }
 
       setFeedAlerts(alerts);
@@ -767,41 +790,40 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Feed Health Alerts */}
-            {feedAlerts.length > 0 && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Feed Health Issues ({feedAlerts.length} feed{feedAlerts.length > 1 ? 's' : ''})</AlertTitle>
-                <AlertDescription>
-                  <div className="mt-2 space-y-1">
-                    {feedAlerts.map((alert, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className={`inline-block w-2 h-2 rounded-full ${
-                          alert.status === 'error' ? 'bg-destructive' : alert.status === 'stale' ? 'bg-yellow-500' : 'bg-muted-foreground'
-                        }`} />
-                        <span className="font-medium">{alert.feed_name}</span>
-                        <span className="text-muted-foreground">({alert.metro_area_slug})</span>
-                        <span>—</span>
-                        <span>
-                          {alert.status === 'error' && (alert.last_error || 'Unknown error')}
-                          {alert.status === 'stale' && `No data in ${alert.hours_since_fetch}h`}
-                          {alert.status === 'never_fetched' && 'Never fetched'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => setActiveTab('scrape')}
-                  >
-                    <Globe className="w-3 h-3 mr-1" />
-                    Go to Scrape Sources
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
+            {/* Feed Status Notices */}
+            {feedAlerts.length > 0 && (() => {
+              const hasDestructive = feedAlerts.some(a => a.severity === 'destructive');
+              return (
+                <Alert variant={hasDestructive ? 'destructive' : 'default'} className="mb-6">
+                  {hasDestructive ? <AlertTriangle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                  <AlertTitle>Feed Status Notices ({feedAlerts.length} feed{feedAlerts.length > 1 ? 's' : ''})</AlertTitle>
+                  <AlertDescription>
+                    <div className="mt-2 space-y-1">
+                      {feedAlerts.map((alert, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className={`inline-block w-2 h-2 rounded-full ${
+                            alert.severity === 'destructive' ? 'bg-destructive' : 'bg-yellow-500'
+                          }`} />
+                          <span className="font-medium">{alert.feed_name}</span>
+                          <span className="text-muted-foreground">({alert.metro_area_slug})</span>
+                          <span>—</span>
+                          <span>{alert.reasons.join(', ')}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => setActiveTab('ingestion')}
+                    >
+                      <Activity className="w-3 h-3 mr-1" />
+                      View Ingestion Health
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              );
+            })()}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
