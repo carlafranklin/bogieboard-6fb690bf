@@ -933,8 +933,8 @@ export default function EventsPage() {
                 <Button
                   onClick={() => fetchEvents({ append: true })}
                   disabled={loadingMore}
-                  variant="outline"
                   size="lg"
+                  className="font-semibold shadow-md hover:shadow-lg transition-all"
                 >
                   {loadingMore ? 'Loading more...' : 'Load More'}
                 </Button>
