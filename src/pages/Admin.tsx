@@ -46,6 +46,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isOps, setIsOps] = useState(false);
+  const [pendingOver48h, setPendingOver48h] = useState(0);
   const [activeTab, setActiveTab] = useState('users');
 
   // Users state
@@ -183,10 +184,11 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
     const nowISO = new Date().toISOString();
+    const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
     const [
       profilesRes, rolesRes, catsRes, subsRes, feedsRes, partnerEventsRes, eventCategoriesRes,
       canonicalTotalRes, canonicalActiveRes, canonicalUpcomingActiveRes, canonicalExpiredRes, canonicalCancelledRes, canonicalPostponedRes,
-      partnerProfilesRes, savedEventsRes, allFeedsRes, businessOwnersRes,
+      partnerProfilesRes, savedEventsRes, allFeedsRes, businessOwnersRes, pendingBusinessesOver48hRes,
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
@@ -215,7 +217,14 @@ export default function AdminPage() {
       // Fallback business name source for the Users tab: owners whose partner_profiles
       // row doesn't exist yet, sourced from the newer businesses/business_members model.
       supabase.from('business_members').select('user_id, businesses(name)').eq('role', 'owner'),
+      // Phase C: count-only, no row fetch. businesses (not business_applications) is the
+      // source of truth here — bb_business_applications_select was never widened for ops,
+      // so an ops session would silently get 0 rows querying that table directly.
+      supabase.from('businesses' as any).select('id', { count: 'exact', head: true })
+        .eq('verification_status', 'pending').lt('created_at', cutoff48h),
     ]);
+
+    setPendingOver48h(pendingBusinessesOver48hRes.count ?? 0);
 
     // Linked-event counts per category, used to block unsafe deletes below.
     const eventCategoryCounts = new Map<string, number>();
@@ -818,6 +827,20 @@ export default function AdminPage() {
                 <p className="text-sm text-muted-foreground">Manage users, categories, scrape sources, and view statistics</p>
               </div>
             </div>
+
+            {/* Pending Partner Applications Alert — admin and ops, MVP-narrow (no ingestion/cron/feed info) */}
+            {(isAdmin || isOps) && pendingOver48h > 0 && (
+              <Alert className="mb-6">
+                <Clock className="h-4 w-4" />
+                <AlertTitle>Partner applications need review</AlertTitle>
+                <AlertDescription>
+                  {pendingOver48h} partner application{pendingOver48h > 1 ? 's have' : ' has'} been pending for more than 48 hours.
+                  <Button variant="outline" size="sm" className="mt-3 block" onClick={() => setActiveTab('business-applications')}>
+                    Go to Business Applications
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Feed Status Notices — admin only; links to Ingestion Health, which Ops can't access */}
             {isAdmin && feedAlerts.length > 0 && (() => {
