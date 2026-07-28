@@ -543,7 +543,13 @@ export default function AdminPage() {
   };
 
   const handleAddRole = async (userId: string, role: string) => {
-    const { error } = await supabase.from('user_roles').insert({ user_id: userId, role: role as any });
+    // Cast: admin_assign_role isn't in the generated Database Functions type
+    // (same pre-existing generated-types gap already noted elsewhere in this file).
+    const { error } = await (supabase.rpc as any)('admin_assign_role', {
+      p_target_user_id: userId,
+      p_role: role,
+      p_action: 'grant',
+    });
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
@@ -557,7 +563,11 @@ export default function AdminPage() {
       toast({ title: 'Cannot remove', description: 'General role cannot be removed.', variant: 'destructive' });
       return;
     }
-    const { error } = await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', role as any);
+    const { error } = await (supabase.rpc as any)('admin_assign_role', {
+      p_target_user_id: userId,
+      p_role: role,
+      p_action: 'revoke',
+    });
     if (error) {
       toast({ title: 'Error', description: getSafeErrorMessage(error), variant: 'destructive' });
     } else {
@@ -957,7 +967,7 @@ export default function AdminPage() {
                                   <SelectValue placeholder="Add role..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {['business', 'admin'].filter(r => !user.roles.includes(r)).map(role => (
+                                  {['business', 'admin', 'ops'].filter(r => !user.roles.includes(r)).map(role => (
                                     <SelectItem key={role} value={role} className="text-xs capitalize">{role}</SelectItem>
                                   ))}
                                 </SelectContent>
