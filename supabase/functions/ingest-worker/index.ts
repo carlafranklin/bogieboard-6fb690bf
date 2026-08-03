@@ -507,6 +507,23 @@ Deno.serve(async (_req: Request): Promise<Response> => {
       .eq("id", job.feed_id);
   }
 
+  // Best-effort audit log of this invocation. Never blocks or fails the job —
+  // see logFeedProcessingHistory().
+  await logFeedProcessingHistory(db, {
+    feed_id: job.feed_id,
+    queue_job_id: job.id,
+    worker_id: WORKER_ID,
+    attempt_number: job.attempt_count,
+    status: "completed",
+    started_at: new Date(startMs).toISOString(),
+    finished_at: now,
+    duration_ms: Date.now() - startMs,
+    events_found: events.length,
+    events_created: eventsPersisted,
+    events_failed: perEventErrors,
+    last_cursor: { page: nextPage },
+  });
+
   return workerOk({
     claimed: true, job_id: job.id,
     feed_name: feed.feed_name, metro: feed.metro_area_slug,
@@ -564,10 +581,50 @@ async function failJob(
   }
   await db.from("feed_registry").update(feedPatch).eq("id", job.feed_id);
 
+  // Best-effort audit log of this failed attempt. Never blocks or fails the
+  // job — see logFeedProcessingHistory().
+  await logFeedProcessingHistory(db, {
+    feed_id: job.feed_id,
+    queue_job_id: job.id,
+    worker_id: WORKER_ID,
+    attempt_number: newAttempts,
+    status: "failed",
+    started_at: new Date(startMs).toISOString(),
+    finished_at: new Date().toISOString(),
+    duration_ms: Date.now() - startMs,
+    last_cursor: job.last_cursor,
+    error_message: safeReason,
+    retry_scheduled_at: exhausted ? null : nextRunAt,
+  });
+
   return workerError(
     `Attempt ${newAttempts}/${job.max_attempts ?? 5}: ${safeReason}`,
     startMs, { job_id: job.id, exhausted },
   );
+}
+
+// ---------------------------------------------------------------------------
+// Feed processing history logging (best-effort; must never fail the job)
+// ---------------------------------------------------------------------------
+
+async function logFeedProcessingHistory(
+  db: SupabaseClient,
+  row: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const { error } = await db.from("feed_processing_history").insert(row);
+    if (error) {
+      console.error(
+        "[ingest-worker] feed_processing_history insert failed:",
+        error.message,
+      );
+    }
+  } catch (err: unknown) {
+    console.error(
+      "[ingest-worker] feed_processing_history insert threw:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
