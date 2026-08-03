@@ -9,12 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // Approve/Reject pending business applications via the existing admin_review_business
-// RPC (writes admin_audit_log itself — nothing here duplicates that). After a
-// successful RPC call, also mirrors the decision onto the matching partner_profiles
-// row: admin_review_business only ever touches businesses/business_applications, and
-// partner_profiles (the legacy table PartnerPage.tsx's public profile still reads)
-// is otherwise never synced, which is what left every partner's public page
-// permanently broken.
+// RPC. That RPC now also syncs partner_profiles.verification_status atomically
+// (same transaction as the businesses update) — this component no longer does
+// a separate client-side sync step; that reliability gap (a two-step process
+// where only the first step was guaranteed) is what previously left partner
+// public pages/dashboard badges able to go stale on a failed second call.
 
 interface PendingBusiness {
   id: string;
@@ -59,34 +58,6 @@ export function BusinessApplicationsPanel() {
 
   useEffect(() => { load(); }, []);
 
-  // businesses -> business_members(role='owner') -> user_id -> partner_profiles.user_id.
-  // Returns false (non-fatal) if no owner or no partner_profiles row is found — the
-  // business decision itself has already been saved via the RPC either way.
-  const syncPartnerProfile = async (businessId: string, status: 'approved' | 'rejected'): Promise<boolean> => {
-    const { data: owner, error: ownerErr } = await supabase
-      .from('business_members')
-      .select('user_id')
-      .eq('business_id', businessId)
-      .eq('role', 'owner')
-      .maybeSingle();
-
-    if (ownerErr || !owner?.user_id) {
-      console.warn('BusinessApplicationsPanel: could not resolve business owner for partner_profiles sync', ownerErr);
-      return false;
-    }
-
-    const { error: syncErr } = await supabase
-      .from('partner_profiles')
-      .update({ verification_status: status })
-      .eq('user_id', owner.user_id);
-
-    if (syncErr) {
-      console.warn('BusinessApplicationsPanel: partner_profiles sync failed', syncErr);
-      return false;
-    }
-    return true;
-  };
-
   const handleDecision = async (business: PendingBusiness, status: 'approved' | 'rejected') => {
     const note = notes[business.id]?.trim() || '';
     if (status === 'rejected' && !note) {
@@ -109,16 +80,13 @@ export function BusinessApplicationsPanel() {
         return;
       }
 
-      const synced = await syncPartnerProfile(business.id, status);
-
       setNotes(prev => { const n = { ...prev }; delete n[business.id]; return n; });
       await load();
       toast({
         title: status === 'approved' ? 'Business approved' : 'Business rejected',
-        description: synced
-          ? 'Saved. The partner’s public profile status has been updated to match.'
-          : 'Business decision saved, but the partner’s public profile record could not be synced automatically — check manually.',
-        variant: synced ? 'default' : 'destructive',
+        description: status === 'approved'
+          ? 'The partner can now create events and their public profile is live.'
+          : 'The rejection has been recorded.',
       });
     } finally {
       setSubmitting(prev => ({ ...prev, [business.id]: false }));
